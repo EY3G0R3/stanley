@@ -154,6 +154,13 @@ As of 2026-11-02 PST.
 (yadm) runs `stanley` where it is installed and `slstatus -s` elsewhere.
 Bar files are yadm alternates in `~/.config/stanley/`.
 
+**Done: phase 2** (branch `protocol-v2` here and in dwl). Sections, the
+role table, `dwl -p`, and the clock, date and hostname widgets, as planned
+under Next 2. Checked headless: v1 lines draw pixel for pixel as before,
+and the v2 bar puts the clock, host name and date where dwl drew them.
+Clicks on the left and center sections are not yet checked on a live
+session. Painted meter styles are now possible on dwl but untried.
+
 ### Setting up another machine
 
 1. Install the Rust toolchain and libpulse headers (Ubuntu: `libpulse-dev`;
@@ -235,8 +242,9 @@ table, which skips 0x0a:
 
 **Bar file.** `section left`, `section center` and `section right` start a
 section; widgets before any `section` line are on the right, so phase 1 bar
-files still work. New widgets: `clock` (`clock:%H:%M` takes a strftime
-format, default `%I:%M %p`), `date` (default `%Y-%m-%d`) and `hostname`.
+files still work. New widgets: `clock` (`%I:%M %p`), `date` (`%Y-%m-%d`) and
+`hostname`, as dwl drew them. They take no format argument: the clock's
+format has a space, and the bar file splits on spaces.
 
 **How dwl lays it out.** dwl splits the line into the three sections when it
 reads it. The right section is drawn as the status is today: right aligned,

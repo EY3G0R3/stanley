@@ -8,7 +8,12 @@
 #
 # parts:    icon name gauge extra (none listed: every part the widget has)
 # widgets:  top cpu memory disk tmp audio mic record agents messages
-#           bluetooth wifi battery
+#           bluetooth wifi battery clock date hostname
+# sections: "section left", "section center" or "section right" puts the
+#           widgets after it there; before any, they are on the right. dwl
+#           centres the center section and puts the left one between the
+#           tags and the center. A dwl older than protocol 2 shows only the
+#           right section, and draws its own clock.
 # settings: set <key> <value>, for interval (ms), meter-style, meter-cells,
 #           warn-at, crit-at, gap, group-gap, icon-gap
 #
@@ -17,6 +22,14 @@
 
 set meter-style box
 
+section left
+hostname   name
+date       extra               click: slstatus-action date
+
+section center
+clock      extra               click: slstatus-action date
+
+section right
 top        extra               click: slstatus-action top
 
 cpu        icon gauge          click: slstatus-action cpu
