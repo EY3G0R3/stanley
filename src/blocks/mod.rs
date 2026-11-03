@@ -38,6 +38,19 @@ pub trait Block {
     fn interval(&self) -> Option<Duration> {
         None
     }
+
+    /// What a click does. `button` is 1 left, 2 middle, 3 right, 4 and 5 a
+    /// wheel notch. Returns a shell command to run, or None when the block
+    /// did it itself or ignores that button. A bar-file `click:` overrides
+    /// this.
+    fn click(&mut self, _button: u8) -> Option<String> {
+        None
+    }
+}
+
+/// Open popup `name` (see `src/popups/`) on a left click.
+fn popup(button: u8, name: &str) -> Option<String> {
+    (button == 1).then(|| format!("stanley-popup {name}"))
 }
 
 /// Icons, all checked against the bar's font. Most are in the private use
@@ -70,9 +83,14 @@ pub mod icon {
 struct Fixed {
     icon: &'static str,
     name: &'static str,
+    popup: &'static str,
 }
 
 impl Block for Fixed {
+    fn click(&mut self, button: u8) -> Option<String> {
+        popup(button, self.popup)
+    }
+
     fn read(&mut self) -> Reading {
         Reading { icon: Some(self.icon.into()), name: Some(self.name.into()), ..Reading::default() }
     }
@@ -110,9 +128,9 @@ impl Factory {
             "clock" => Box::new(clock::Clock::time()),
             "date" => Box::new(clock::Clock::date()),
             "hostname" => Box::new(hostname::Hostname),
-            "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI" }),
-            "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT" }),
-            "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI" }),
+            "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI", popup: "agents" }),
+            "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT", popup: "bluetooth" }),
+            "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI", popup: "network" }),
             _ => return Err(format!("unknown widget {widget:?}; known: {}", NAMES.join(", "))),
         })
     }

@@ -9,7 +9,7 @@
 //! Processes of one name count as one program, shown `name×K(N%)`: eleven
 //! fancylog processes at 1% each are one 11% fancylog, not eleven ties.
 
-use super::{dim, Reading, Block};
+use super::{dim, popup, Block, Reading};
 use crate::protocol::{clean, paint, Role};
 use std::collections::HashMap;
 use std::fs;
@@ -62,6 +62,18 @@ fn process(pid: &str) -> Option<(String, u64, u64)> {
 }
 
 impl Block for Top {
+    fn click(&mut self, button: u8) -> Option<String> {
+        match button {
+            // dwl parks btop on a scratchpad tag that only its own
+            // togglescratch shows, so the click types that binding through
+            // the virtual keyboard, staying in step with Super+Escape. It has
+            // to change if that binding does.
+            1 => Some("wtype -M logo -k Escape -m logo".into()),
+            3 => popup(1, "cpu"),
+            _ => None,
+        }
+    }
+
     fn interval(&self) -> Option<Duration> {
         Some(EVERY)
     }

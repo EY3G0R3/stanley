@@ -34,6 +34,14 @@ fn now(format: &CStr) -> Option<String> {
 }
 
 impl Block for Clock {
+    fn click(&mut self, button: u8) -> Option<String> {
+        (button == 1).then(|| {
+            "yad --calendar --mouse --on-top --undecorated --skip-taskbar --fixed \
+             --close-on-unfocus --no-buttons --width=280 --height=240 --title=Calendar"
+                .into()
+        })
+    }
+
     fn read(&mut self) -> Reading {
         Reading { icon: Some(self.icon.into()), extra: now(self.format), ..Reading::default() }
     }

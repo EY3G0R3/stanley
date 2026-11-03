@@ -1,6 +1,6 @@
 //! Whether ~/bin/fix-my-messages runs, and how many fixes it made today.
 
-use super::{dim, icon, Reading, Block};
+use super::{dim, icon, popup, Block, Reading};
 use std::fs;
 
 pub struct Fixer;
@@ -26,6 +26,10 @@ fn state() -> Option<Option<u32>> {
 }
 
 impl Block for Fixer {
+    fn click(&mut self, button: u8) -> Option<String> {
+        popup(button, "messages")
+    }
+
     fn read(&mut self) -> Reading {
         match state() {
             // Off: a dim icon is the reminder.

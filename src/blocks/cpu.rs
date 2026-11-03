@@ -1,6 +1,6 @@
 //! Whole-machine CPU use since the last tick, from /proc/stat.
 
-use super::{icon, Reading, Block};
+use super::{icon, popup, Block, Reading};
 use crate::meter::Gauge;
 
 pub struct Cpu {
@@ -25,6 +25,10 @@ fn sample() -> Option<[u64; 7]> {
 }
 
 impl Block for Cpu {
+    fn click(&mut self, button: u8) -> Option<String> {
+        popup(button, "cpu")
+    }
+
     fn read(&mut self) -> Reading {
         let now = sample();
         // The first reading has nothing to measure against: icon, no gauge.

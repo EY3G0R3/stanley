@@ -4,7 +4,7 @@
 //! One connection stays open for the life of the bar and is shared by the
 //! `audio` and `mic` widgets; it is opened only if one of them is on the bar.
 
-use super::{icon, Reading, Block};
+use super::{icon, popup, Block, Reading};
 use crate::meter::Gauge;
 use crate::protocol::{paint, Role};
 use libpulse_binding as pulse;
@@ -14,7 +14,7 @@ use pulse::mainloop::standard::Mainloop;
 use pulse::operation::State as OpState;
 use pulse::proplist::properties::DEVICE_DESCRIPTION;
 use pulse::time::MicroSeconds;
-use pulse::volume::Volume;
+use pulse::volume::{ChannelVolumes, Volume};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -193,6 +193,78 @@ impl Pulse {
     }
 }
 
+/// What a click changes on the default output.
+pub enum Change {
+    Mute,
+    Up,
+    Down,
+}
+
+impl Pulse {
+    /// Toggle mute, or move the volume 2 % (up to 100 %), on the default
+    /// output, through the connection the bar already holds. The next read
+    /// queries afresh, so the gauge shows the change on the redraw that the
+    /// click triggers.
+    pub fn change(&mut self, change: Change) {
+        self.taken = None;
+        if self.connection.is_none() {
+            self.connection = connect();
+        }
+        let Some(conn) = self.connection.as_mut() else { return };
+        let deadline = Instant::now() + TIMEOUT;
+
+        let sink = Rc::new(RefCell::new(None::<String>));
+        let s = sink.clone();
+        let op = conn.context.introspect().get_server_info(move |info| {
+            *s.borrow_mut() = info.default_sink_name.as_ref().map(|n| n.to_string());
+        });
+        if pump(&mut conn.mainloop, deadline, || op.get_state() != OpState::Running).is_none() {
+            return;
+        }
+        let Some(name) = sink.borrow().clone() else { return };
+
+        let state = Rc::new(RefCell::new(None::<(ChannelVolumes, bool)>));
+        let s = state.clone();
+        let op = conn.context.introspect().get_sink_info_by_name(&name, move |result| {
+            if let ListResult::Item(info) = result {
+                *s.borrow_mut() = Some((info.volume, info.mute));
+            }
+        });
+        if pump(&mut conn.mainloop, deadline, || op.get_state() != OpState::Running).is_none() {
+            return;
+        }
+        let Some((mut volume, mute)) = *state.borrow() else { return };
+
+        let step = Volume(Volume::NORMAL.0 / 50);
+        let mut introspect = conn.context.introspect();
+        let op = match change {
+            Change::Mute => introspect.set_sink_mute_by_name(&name, !mute, None),
+            Change::Up => {
+                volume.inc_clamp(step, Volume::NORMAL);
+                introspect.set_sink_volume_by_name(&name, &volume, None)
+            }
+            Change::Down => {
+                volume.decrease(step);
+                introspect.set_sink_volume_by_name(&name, &volume, None)
+            }
+        };
+        let _ = pump(&mut conn.mainloop, deadline, || op.get_state() != OpState::Running);
+    }
+}
+
+/// The clicks the audio and mic blocks share: left opens the popup, middle
+/// mutes, the wheel moves the volume.
+fn click(pulse: &RefCell<Pulse>, button: u8) -> Option<String> {
+    let change = match button {
+        2 => Change::Mute,
+        4 => Change::Up,
+        5 => Change::Down,
+        _ => return popup(button, "audio"),
+    };
+    pulse.borrow_mut().change(change);
+    None
+}
+
 fn connect() -> Option<Connection> {
     let mut mainloop = Mainloop::new()?;
     let mut context = Context::new(&mainloop, "stanley")?;
@@ -225,6 +297,10 @@ impl Audio {
 }
 
 impl Block for Audio {
+    fn click(&mut self, button: u8) -> Option<String> {
+        click(&self.pulse, button)
+    }
+
     fn read(&mut self) -> Reading {
         match self.pulse.borrow_mut().snapshot() {
             Some(s) => Reading {
@@ -255,6 +331,10 @@ impl Mic {
 }
 
 impl Block for Mic {
+    fn click(&mut self, button: u8) -> Option<String> {
+        click(&self.pulse, button)
+    }
+
     fn read(&mut self) -> Reading {
         if !self.pulse.borrow_mut().snapshot().is_some_and(|s| s.mic_live) {
             return Reading::default();

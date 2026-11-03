@@ -17,6 +17,18 @@ fn recording() -> Option<bool> {
 }
 
 impl Block for Recording {
+    fn click(&mut self, button: u8) -> Option<String> {
+        if button != 1 {
+            return None;
+        }
+        // A click stops a recording that runs, as on the Omarchy bar.
+        Some(if recording().unwrap_or(false) {
+            "\"$HOME/bin/screen-record\" --stop-recording".into()
+        } else {
+            "stanley-popup record".into()
+        })
+    }
+
     fn read(&mut self) -> Reading {
         let on = recording().unwrap_or(false);
         let style = |s: &str| if on { paint(Role::Crit, s) } else { dim(s) };

@@ -176,16 +176,16 @@ fn main() {
         if options.once || STOP.load(Ordering::SeqCst) {
             break;
         }
-        wait(start + tick, &mut clicks, &slots);
+        wait(start + tick, &mut clicks, &mut slots);
         if STOP.load(Ordering::SeqCst) {
             break;
         }
     }
 }
 
-/// Sleep until `deadline`, running clicks as they come. A signal ends the
-/// wait early.
-fn wait(deadline: Instant, clicks: &mut Option<click::Clicks>, slots: &[Slot]) {
+/// Sleep until `deadline`, running clicks as they come. A signal or a click
+/// ends the wait early: a click may change what its block shows.
+fn wait(deadline: Instant, clicks: &mut Option<click::Clicks>, slots: &mut [Slot]) {
     loop {
         if STOP.load(Ordering::SeqCst) || RELOAD.load(Ordering::SeqCst) || WAKE.load(Ordering::SeqCst) {
             return;
@@ -197,17 +197,27 @@ fn wait(deadline: Instant, clicks: &mut Option<click::Clicks>, slots: &[Slot]) {
             continue;
         };
         let mut fds = c.pollfds();
+        let mut clicked = false;
         if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) } > 0 {
             for click in c.drain() {
-                let command = (click.block as usize)
-                    .checked_sub(1)
-                    .and_then(|i| slots.get(i))
-                    .and_then(|slot| slot.entry.click.as_deref());
+                let Some(slot) = (click.block as usize).checked_sub(1).and_then(|i| slots.get_mut(i)) else {
+                    continue;
+                };
+                // The bar file's click: wins; otherwise the block's own.
+                let command = match &slot.entry.click {
+                    Some(command) => Some(command.clone()),
+                    None => slot.block.as_mut().and_then(|b| b.click(click.button)),
+                };
                 if let Some(command) = command {
-                    c.run(command, click);
+                    c.run(&command, click);
                 }
+                slot.due = None;
+                clicked = true;
             }
         }
         c.reap();
+        if clicked {
+            return;
+        }
     }
 }
