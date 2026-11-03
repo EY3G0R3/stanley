@@ -4,9 +4,11 @@
 # and costs nothing. A blank line starts a group; groups get a wider gap, so
 # gauges and bare icons do not mix.
 #
-#   widget[:arg]  parts...  click: command
+#   widget[:arg]  parts...  [click: command]
 #
 # parts:    icon name gauge extra (none listed: every part the widget has)
+# click:    each widget has its own (a popup, the volume, ...); a click:
+#           command replaces it, run with BLOCK_BUTTON, BLOCK_X, BLOCK_WIDTH
 # widgets:  top cpu memory disk tmp audio mic record agents messages
 #           bluetooth wifi battery clock date hostname
 # sections: "section left", "section center" or "section right" puts the
@@ -24,24 +26,24 @@ set meter-style box
 
 section left
 hostname   name
-date       extra               click: slstatus-action date
+date       extra
 
 section center
-clock      extra               click: slstatus-action date
+clock      extra
 
 section right
-top        extra               click: slstatus-action top
+top        extra
 
-cpu        icon gauge          click: stanley-popup cpu
-memory     icon gauge          click: stanley-popup memory
-disk:/     icon gauge          click: stanley-popup disk
+cpu        icon gauge
+memory     icon gauge
+disk:/     icon gauge
 
-audio      icon gauge          click: slstatus-action audio
-mic        icon name           click: slstatus-action audio
+audio      icon gauge
+mic        icon name
 
-record     icon                click: slstatus-action record
-agents     icon                click: stanley-popup agents
-messages   icon extra          click: stanley-popup messages
-bluetooth  icon                click: stanley-popup bluetooth
-wifi       icon                click: stanley-popup network
-battery    icon gauge extra    click: stanley-popup power
+record     icon
+agents     icon
+messages   icon extra
+bluetooth  icon
+wifi       icon
+battery    icon gauge extra
