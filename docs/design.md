@@ -115,6 +115,16 @@ read, so a volume change shows at once. Buttons count as in X11: 1 left,
 | record | stop a recording if one runs, else the `record` popup | |
 | clock, date | calendar (`yad`) | |
 | hostname | none | |
+| script | none (use `click:`) | |
+
+**Script blocks.** `script:COMMAND` shows what a command prints, so a widget
+can be shared as a script without touching Rust. The command runs through
+`sh -c` every 10 s, never two at once, and is started on one tick and
+collected on a later one, so a slow script never holds up the bar; one still
+running after 10 s is killed and the last reading stays. The first line of
+output is the block: the part before a tab is the icon, the rest the extra
+text. No output takes the block off the bar. COMMAND is one word, since the
+bar file splits on spaces.
 
 ## Popups
 
@@ -209,10 +219,8 @@ stanley and dwl speak one protocol, so update and rebuild them together.
 
 ## Next work
 
-**Extension points.** A `script:COMMAND` widget that runs a command at its
-interval and shows its output, so a widget can be shared as a script without
-touching Rust. `stanley-popup NAME` also looking in
-`~/.config/stanley/popups/NAME.py`.
+**Drop-in popups.** `stanley-popup NAME` also looking in
+`~/.config/stanley/popups/NAME.py`, so a script block can have a popup too.
 
 ## Known gaps
 

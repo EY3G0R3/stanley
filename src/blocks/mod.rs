@@ -10,6 +10,7 @@ mod fixer;
 mod hostname;
 mod memory;
 mod recording;
+mod script;
 mod top;
 
 use crate::meter::Gauge;
@@ -99,7 +100,7 @@ impl Block for Fixed {
 /// The widgets a bar file can name, for error messages.
 pub const NAMES: &[&str] = &[
     "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "record", "agents", "messages",
-    "bluetooth", "wifi", "battery", "clock", "date", "hostname",
+    "bluetooth", "wifi", "battery", "clock", "date", "hostname", "script",
 ];
 
 /// Build every widget the bar file lists, and nothing else. Widgets that share
@@ -128,6 +129,10 @@ impl Factory {
             "clock" => Box::new(clock::Clock::time()),
             "date" => Box::new(clock::Clock::date()),
             "hostname" => Box::new(hostname::Hostname),
+            "script" => match arg {
+                Some(command) => Box::new(script::Script::new(command)),
+                None => return Err("script needs a command: script:~/bin/vpn-status".into()),
+            },
             "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI", popup: "agents" }),
             "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT", popup: "bluetooth" }),
             "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI", popup: "network" }),
