@@ -43,8 +43,9 @@ and block markers; it never names a color.
 2. **dwl protocol v2.** Sections (left, center, right) so the clock can stay
    centred; clock, date and hostname move from dwl into stanley as widgets;
    dwl maps roles through a documented table instead of its `Scheme` enum.
-3. **Popups move in.** `slstatus-panel` becomes `panels/` here, one module per
-   widget, and `slstatus-action` routing is retired.
+3. **Popups move in, slstatus retires.** `slstatus-panel` becomes
+   `src/popups/`, `slstatus-action` becomes block clicks in Rust, and every
+   slstatus shim goes. See the phase 3 plan.
 
 This document plans phase 1 in detail. "Status and next work" at the end
 sketches what comes next, enough to pick the work up on another machine.
@@ -287,10 +288,61 @@ before starting the bar.
 
 ### Next 3: phase 3, popups move in
 
-`slstatus-panel` becomes `panels/` in this repo, one module per widget, run
-on click. `slstatus-action` routing is replaced by the click column, so a
-bar line says `click: stanley-panel cpu`. Popups collect their own detail
-data, only while open.
+The goal is to retire slstatus: no `slstatus`, `slstatus-action` or
+`slstatus-panel`, and no protocol 1 or `slstatus-click` left anywhere.
+
+#### Phase 3 plan
+
+```
+src/
+  main.rs config.rs render.rs meter.rs protocol.rs click.rs
+  blocks/   one Rust file per block: its reading and its click
+  popups/   stanley-popup (entry), common.py, one module per popup
+```
+
+Cargo compiles only what `main.rs` reaches, so Python under `src/` is
+ignored by the build. `make install` also links `~/.local/bin/stanley-popup`.
+
+**3a. Popups move in.** `slstatus-panel` becomes `src/popups/`: the shared
+parts (`Panel`, `Tab`, colors, CSS, `place()`) in `common.py`, one module per
+popup (`network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `gauge`
+with `cpu`, `memory` and `disk`, `messages`, `record`). `stanley-popup NAME`
+opens one, and a second call closes it, as now. It also makes the
+Quickshell choice that `slstatus-action panel` made: where Omarchy's shell
+runs, `network`, `bluetooth`, `power`, `tmp` and `agents` open its panels.
+Bar files switch their click lines to `stanley-popup NAME`.
+
+**3b. Blocks handle their own clicks.** `Block` gains
+`click(&mut self, click: Click) -> Option<Command>`, beside `read`. A
+bar-file `click:` still overrides it; without one the block's own click
+runs. Defaults, from what `slstatus-action` does today:
+
+| Block | Left | Other |
+|---|---|---|
+| cpu, memory, disk, tmp, messages | its popup | |
+| battery, wifi, bluetooth, agents | `power`, `network`, `bluetooth`, `agents` popup | |
+| audio, mic | `audio` popup | middle: mute; wheel: volume ±2 %, through the open PulseAudio connection |
+| top | the btop scratchpad (`wtype` Super+Escape) | right: `cpu` popup |
+| record | stop a recording if one runs, else the `record` popup | |
+| clock, date | calendar (`yad`, as now) | |
+| hostname | none | |
+
+The notification fallbacks in `slstatus-action` (for hosts without popups)
+are not carried over. Bar files drop their `click:` lines.
+
+**3c. Extension points.** A `script:COMMAND` widget runs a command at its
+interval and shows its output, so a widget can be shared as a script without
+touching Rust. `stanley-popup NAME` also looks in
+`~/.config/stanley/popups/NAME.py`.
+
+**3d. Retire slstatus.** Once silence and fractal run 3a and 3b:
+
+- dwl: drop protocol 1, its own clock, date and host name, and the
+  `slstatus-click` fallback.
+- stanley: drop `to_v1`, the version check and reading `slstatus-click`.
+- yadm: drop the slstatus fallback in `dwl-session` and the slstatus cases in
+  `restart-desktop-component` and `wmbench`; reword comments that name it.
+- Remove the `slstatus*` links from `~/.local/bin` and archive the repo.
 
 ### Known gaps
 
