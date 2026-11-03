@@ -312,6 +312,9 @@ Quickshell choice that `slstatus-action panel` made: where Omarchy's shell
 runs, `network`, `bluetooth`, `power`, `tmp` and `agents` open its panels.
 Bar files switch their click lines to `stanley-popup NAME`.
 
+*Done* (branch `phase3`): all eleven popups open headless with live data.
+Host bar files and `STANLEY_POPUPS` in yadm switch when the branch merges.
+
 **3b. Blocks handle their own clicks.** `Block` gains
 `click(&mut self, click: Click) -> Option<Command>`, beside `read`. A
 bar-file `click:` still overrides it; without one the block's own click
