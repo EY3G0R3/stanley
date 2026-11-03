@@ -32,16 +32,16 @@ clock      extra               click: slstatus-action date
 section right
 top        extra               click: slstatus-action top
 
-cpu        icon gauge          click: slstatus-action cpu
-memory     icon gauge          click: slstatus-action memory
-disk:/     icon gauge          click: slstatus-action disk
+cpu        icon gauge          click: stanley-popup cpu
+memory     icon gauge          click: stanley-popup memory
+disk:/     icon gauge          click: stanley-popup disk
 
 audio      icon gauge          click: slstatus-action audio
 mic        icon name           click: slstatus-action audio
 
 record     icon                click: slstatus-action record
-agents     icon                click: slstatus-action panel omarchy.agents
-messages   icon extra          click: slstatus-action messages
-bluetooth  icon                click: slstatus-action panel omarchy.bluetooth
-wifi       icon                click: slstatus-action panel omarchy.network
-battery    icon gauge extra    click: slstatus-action panel omarchy.power
+agents     icon                click: stanley-popup agents
+messages   icon extra          click: stanley-popup messages
+bluetooth  icon                click: stanley-popup bluetooth
+wifi       icon                click: stanley-popup network
+battery    icon gauge extra    click: stanley-popup power
