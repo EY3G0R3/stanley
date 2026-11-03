@@ -1,0 +1,34 @@
+# stanley's bar file: ~/.config/stanley/bar, a yadm alternate per host.
+#
+# One widget per line, in bar order. A widget that is not listed is hidden
+# and costs nothing. A blank line starts a group; groups get a wider gap, so
+# gauges and bare icons do not mix.
+#
+#   widget[:arg]  parts...  click: command
+#
+# parts:    icon name gauge extra (none listed: every part the widget has)
+# widgets:  top cpu memory disk tmp audio mic record agents messages
+#           bluetooth wifi battery
+# settings: set <key> <value>, for interval (ms), meter-style, meter-cells,
+#           warn-at, crit-at, gap, group-gap, icon-gap
+#
+# Comments are whole lines only: a click command may contain '#'.
+# `pkill -HUP stanley` re-reads this file.
+
+set meter-style box
+
+top        extra               click: slstatus-action top
+
+cpu        icon gauge          click: slstatus-action cpu
+memory     icon gauge          click: slstatus-action memory
+disk:/     icon gauge          click: slstatus-action disk
+
+audio      icon gauge          click: slstatus-action audio
+mic        icon name           click: slstatus-action audio
+
+record     icon                click: slstatus-action record
+agents     icon                click: slstatus-action panel omarchy.agents
+messages   icon extra          click: slstatus-action messages
+bluetooth  icon                click: slstatus-action panel omarchy.bluetooth
+wifi       icon                click: slstatus-action panel omarchy.network
+battery    icon gauge extra    click: slstatus-action panel omarchy.power
