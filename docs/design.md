@@ -204,8 +204,62 @@ battery at the right edge: the popup stays on screen.
   so the painted meter styles can work.
 - **Click FIFO rename** is done by Next 1.
 
-Plan it in its own section before coding: the byte values, how dwl measures
-the center section, and how stanley and an old dwl coexist.
+#### Phase 2 plan
+
+**Byte values.** A v2 line is three sections, always all three, in order:
+
+```
+0x1c <left blocks> 0x1d <center blocks> 0x1e <right blocks>
+```
+
+Inside a section, blocks are as in phase 1: `0x1f`, then `0x20 + index`,
+then text. The index is still the widget's position in the whole bar file,
+so clicks and the click FIFO do not change. Role bytes go through this
+table, which skips 0x0a:
+
+| Byte | Role | dwl scheme |
+|---|---|---|
+| 0x01 | Normal | SchemeNorm |
+| 0x02 | Crit | SchemeUrgent |
+| 0x03 | Dim | SchemeEmpty |
+| 0x04 | Warn | SchemeWarn |
+| 0x05 | Ok | SchemeMeterOk |
+| 0x06 | Mark | SchemeMeterMark |
+| 0x07 | FillEdge | SchemeMeter |
+| 0x08 | FillBg | SchemeMeterFill |
+| 0x09 | Accent | SchemeMeterAccent |
+| 0x0b | BgOk | SchemeToneOk |
+| 0x0c | BgWarn | SchemeToneWarn |
+| 0x0d | BgCrit | SchemeToneCrit |
+| 0x0e | Muted | SchemeMuted |
+
+**Bar file.** `section left`, `section center` and `section right` start a
+section; widgets before any `section` line are on the right, so phase 1 bar
+files still work. New widgets: `clock` (`clock:%H:%M` takes a strftime
+format, default `%I:%M %p`), `date` (default `%Y-%m-%d`) and `hostname`.
+
+**How dwl lays it out.** dwl splits the line into the three sections when it
+reads it. The right section is drawn as the status is today: right aligned,
+on the selected monitor only. The center section is centred on the whole bar
+and drawn last, as the clock is today. The left section is centred in the
+space between the layout symbol and the center section, as the date and host
+name are today, and is left out unless it has a bar height of air on both
+sides. Left and center draw on every monitor, as the clock does. Each width
+is measured with `statusink`, the function the hit test uses, and dwl keeps
+each section's x and width for the hit test.
+
+**Coexistence.** stanley is piped into dwl, not started by it, so dwl cannot
+set its environment. Instead, `dwl -p` prints the bar protocol it reads
+(`2`). `dwl-session` and `dwl-nested` export `DWL_BAR_PROTOCOL` from it
+before starting the bar.
+
+- New dwl, new stanley: v2.
+- Old dwl: `-p` is an unknown option, the variable is empty, and stanley
+  writes phase 1 lines. Left and center widgets are left out, since old dwl
+  draws its own clock.
+- New dwl, slstatus or old stanley: a line with no section byte is v1. dwl
+  indexes `Scheme` and draws its own clock, date and host name as before.
+  That code goes once slstatus is retired.
 
 ### Next 3: phase 3, popups move in
 
