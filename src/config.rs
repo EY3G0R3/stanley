@@ -3,8 +3,8 @@
 //! ```text
 //! set meter-style box          # settings first
 //!
-//! cpu     icon gauge     click: slstatus-action cpu
-//! disk:/  icon gauge     click: slstatus-action disk
+//! cpu     icon gauge
+//! disk:/  icon gauge     click: stanley-popup disk
 //!
 //! memory  icon           # a blank line above starts a new group
 //! ```
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn widgets_parts_groups_and_clicks() {
         let c = parse_ok(
-            "# comment\nset gap 3\n\ncpu icon gauge  click: slstatus-action cpu # not a comment\n\
+            "# comment\nset gap 3\n\ncpu icon gauge  click: stanley-popup cpu # not a comment\n\
              disk:/home\n\n\nmemory icon\n",
         );
         assert_eq!(c.settings.gap, 3);
@@ -215,7 +215,7 @@ mod tests {
         let cpu = &c.entries[0];
         assert_eq!(cpu.widget, "cpu");
         assert_eq!(cpu.parts, Parts { icon: true, name: false, gauge: true, extra: false });
-        assert_eq!(cpu.click.as_deref(), Some("slstatus-action cpu # not a comment"));
+        assert_eq!(cpu.click.as_deref(), Some("stanley-popup cpu # not a comment"));
         let disk = &c.entries[1];
         assert_eq!(disk.arg.as_deref(), Some("/home"));
         assert_eq!(disk.parts, Parts::ALL);

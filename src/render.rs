@@ -2,7 +2,7 @@
 
 use crate::config::{Parts, Section, Settings};
 use crate::meter;
-use crate::protocol::{is_blank, to_v1, Role, BLOCK, CENTER, INDEX_BASE, LEFT, RIGHT};
+use crate::protocol::{is_blank, Role, BLOCK, CENTER, INDEX_BASE, LEFT, RIGHT};
 use crate::blocks::Reading;
 
 /// One widget's text: its listed parts that have something to show, one space
@@ -55,12 +55,9 @@ pub struct Placed<'a> {
     pub bare: bool,
 }
 
-/// The status line in protocol `version`: all three sections for 2, and for
-/// 1 only the right one, since that dwl draws its own clock.
-pub fn line(blocks: &[Placed], settings: &Settings, version: u32) -> String {
-    if version < 2 {
-        return to_v1(&section(blocks, Section::Right, settings));
-    }
+/// The status line: the left, center and right sections, each after its
+/// marker.
+pub fn line(blocks: &[Placed], settings: &Settings) -> String {
     let mut out = String::new();
     for (marker, which) in [(LEFT, Section::Left), (CENTER, Section::Center), (RIGHT, Section::Right)] {
         out.push(marker);
@@ -70,7 +67,7 @@ pub fn line(blocks: &[Placed], settings: &Settings, version: u32) -> String {
 }
 
 /// One section's blocks. Each carries its marker, then the gap before it, so
-/// a click on the gap counts for the widget to its right, as in slstatus.
+/// a click on the gap counts for the widget to its right.
 /// The first has no gap: dwl places a section by its glyphs, and leading
 /// spaces would pull the center section off centre.
 fn section(blocks: &[Placed], which: Section, settings: &Settings) -> String {
@@ -135,7 +132,7 @@ mod tests {
             right(3, 1, "c", true),
             right(4, 1, "d", true),
         ];
-        assert_eq!(line(&blocks, &s, 1), "\x1f!a\x1f#  b\x1f$    c\x1f% d");
+        assert_eq!(line(&blocks, &s), "\x1c\x1d\x1e\x1f!a\x1f#  b\x1f$    c\x1f% d");
     }
 
     #[test]
@@ -146,8 +143,6 @@ mod tests {
             Placed { index: 1, group: 1, section: Section::Center, text: "c", bare: false },
             Placed { index: 2, group: 2, section: Section::Left, text: "l", bare: false },
         ];
-        assert_eq!(line(&blocks, &s, 2), "\x1c\x1f#l\x1d\x1f\"c\x1e\x1f!\x02r");
-        // Protocol 1: the right section alone, in slstatus's role bytes.
-        assert_eq!(line(&blocks, &s, 1), "\x1f!\x04r");
+        assert_eq!(line(&blocks, &s), "\x1c\x1f#l\x1d\x1f\"c\x1e\x1f!\x02r");
     }
 }

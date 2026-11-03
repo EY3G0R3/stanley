@@ -4,45 +4,32 @@
 //! block to command, so a new clickable widget is a line in the bar file and
 //! nothing has to be taught to the compositor.
 //!
-//! Two FIFOs while dwl builds older than the position message are around:
-//! `stanley-click` carries six bytes (block, button, then x and the monitor's
-//! width as little-endian u16), and `slstatus-click` the two that slstatus
-//! reads. A dwl that knows the first uses it whenever stanley holds it open.
+//! The FIFO is `$XDG_RUNTIME_DIR/stanley-click`. A click is six bytes: block,
+//! button, then x and the monitor's width as little-endian u16.
 
 use std::ffi::CString;
 use std::os::fd::RawFd;
 use std::process::{Child, Command, Stdio};
 
-/// One click. `at` is the pointer's x and the monitor's width, in
-/// monitor-local logical pixels, when dwl sent them.
+/// One click. `x` and `width` are the pointer's x and the monitor's width,
+/// in monitor-local logical pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Click {
     pub block: u8,
     pub button: u8,
-    pub at: Option<(u16, u16)>,
+    pub x: u16,
+    pub width: u16,
 }
 
 impl Click {
-    fn parse(record: &[u8]) -> Click {
-        let at = (record.len() == 6).then(|| {
-            (u16::from_le_bytes([record[2], record[3]]), u16::from_le_bytes([record[4], record[5]]))
-        });
-        Click { block: record[0], button: record[1], at }
+    fn parse(r: &[u8; 6]) -> Click {
+        Click {
+            block: r[0],
+            button: r[1],
+            x: u16::from_le_bytes([r[2], r[3]]),
+            width: u16::from_le_bytes([r[4], r[5]]),
+        }
     }
-}
-
-/// `$XDG_RUNTIME_DIR/stanley-click`, and `$SLSTATUS_CLICK_FIFO`, else
-/// `$XDG_RUNTIME_DIR/slstatus-click`, with the size of their records.
-fn paths() -> Vec<(String, usize)> {
-    let dir = std::env::var("XDG_RUNTIME_DIR").ok();
-    let mut paths = Vec::new();
-    if let Some(dir) = &dir {
-        paths.push((format!("{dir}/stanley-click"), 6));
-    }
-    if let Some(p) = std::env::var("SLSTATUS_CLICK_FIFO").ok().or(dir.map(|d| format!("{d}/slstatus-click"))) {
-        paths.push((p, 2));
-    }
-    paths
 }
 
 /// Open a FIFO, creating it if needed.
@@ -65,57 +52,51 @@ fn open(path: &str) -> Option<RawFd> {
 }
 
 pub struct Clicks {
-    /// Each FIFO and the size of its records.
-    fifos: Vec<(RawFd, usize)>,
+    fd: RawFd,
     children: Vec<Child>,
 }
 
 impl Clicks {
-    /// Open the FIFOs. None when neither opens; the bar still runs, without
-    /// clicks.
+    /// Open the FIFO. None when it cannot be opened; the bar still runs,
+    /// without clicks.
     pub fn open() -> Option<Clicks> {
-        let fifos: Vec<(RawFd, usize)> =
-            paths().into_iter().filter_map(|(path, size)| open(&path).map(|fd| (fd, size))).collect();
-        (!fifos.is_empty()).then_some(Clicks { fifos, children: Vec::new() })
+        let dir = std::env::var("XDG_RUNTIME_DIR").ok()?;
+        open(&format!("{dir}/stanley-click")).map(|fd| Clicks { fd, children: Vec::new() })
     }
 
-    /// One pollfd per FIFO.
-    pub fn pollfds(&self) -> Vec<libc::pollfd> {
-        self.fifos.iter().map(|&(fd, _)| libc::pollfd { fd, events: libc::POLLIN, revents: 0 }).collect()
+    pub fn fd(&self) -> RawFd {
+        self.fd
     }
 
-    /// Every complete click waiting on the FIFOs. Each write is one record
-    /// and below PIPE_BUF, so a read of one record's size gets exactly one;
-    /// a short read is dropped: keeping part of a click would misalign every
-    /// one after.
+    /// Every complete click waiting on the FIFO. Each write is one click and
+    /// below PIPE_BUF, so a six-byte read gets exactly one; a short read is
+    /// dropped: keeping part of a click would misalign every one after.
     pub fn drain(&mut self) -> Vec<Click> {
         let mut clicks = Vec::new();
         let mut record = [0u8; 6];
-        for &(fd, size) in &self.fifos {
-            loop {
-                let n = unsafe { libc::read(fd, record.as_mut_ptr().cast(), size) };
-                if n <= 0 {
-                    break;
-                }
-                if n as usize == size {
-                    clicks.push(Click::parse(&record[..size]));
-                }
+        loop {
+            let n = unsafe { libc::read(self.fd, record.as_mut_ptr().cast(), record.len()) };
+            if n <= 0 {
+                break;
+            }
+            if n as usize == record.len() {
+                clicks.push(Click::parse(&record));
             }
         }
         clicks
     }
 
-    /// Run a click command in its own session, with `BLOCK_BUTTON` set, and
-    /// `BLOCK_X` and `BLOCK_WIDTH` when dwl sent the position. Its stdout is
-    /// not the bar's: anything it printed would land on dwl's stdin as
-    /// status text.
+    /// Run a click command in its own session, with `BLOCK_BUTTON`, `BLOCK_X`
+    /// and `BLOCK_WIDTH` set. Its stdout is not the bar's: anything it printed
+    /// would land on dwl's stdin as status text.
     pub fn run(&mut self, command: &str, click: Click) {
         self.reap();
         let mut cmd = Command::new("/bin/sh");
-        cmd.arg("-c").arg(command).env("BLOCK_BUTTON", click.button.to_string());
-        if let Some((x, width)) = click.at {
-            cmd.env("BLOCK_X", x.to_string()).env("BLOCK_WIDTH", width.to_string());
-        }
+        cmd.arg("-c")
+            .arg(command)
+            .env("BLOCK_BUTTON", click.button.to_string())
+            .env("BLOCK_X", click.x.to_string())
+            .env("BLOCK_WIDTH", click.width.to_string());
         cmd.stdin(Stdio::null()).stdout(Stdio::null());
         unsafe {
             use std::os::unix::process::CommandExt;
@@ -142,7 +123,6 @@ mod tests {
 
     #[test]
     fn records() {
-        assert_eq!(Click::parse(&[3, 1]), Click { block: 3, button: 1, at: None });
-        assert_eq!(Click::parse(&[3, 1, 0x2c, 0x01, 0x00, 0x0a]), Click { block: 3, button: 1, at: Some((300, 2560)) });
+        assert_eq!(Click::parse(&[3, 1, 0x2c, 0x01, 0x00, 0x0a]), Click { block: 3, button: 1, x: 300, width: 2560 });
     }
 }

@@ -130,7 +130,6 @@ fn main() {
     }
     install_signals();
     let mut clicks = if options.once { None } else { click::Clicks::open() };
-    let version = protocol::version();
     let stdout = std::io::stdout();
 
     loop {
@@ -165,7 +164,7 @@ fn main() {
                 bare: slot.bare,
             })
             .collect();
-        let mut line = render::line(&placed, &settings, version);
+        let mut line = render::line(&placed, &settings);
         line.push('\n');
         let mut out = stdout.lock();
         if out.write_all(line.as_bytes()).and_then(|_| out.flush()).is_err() {
@@ -196,9 +195,9 @@ fn wait(deadline: Instant, clicks: &mut Option<click::Clicks>, slots: &mut [Slot
             unsafe { libc::poll(std::ptr::null_mut(), 0, timeout) };
             continue;
         };
-        let mut fds = c.pollfds();
+        let mut fd = libc::pollfd { fd: c.fd(), events: libc::POLLIN, revents: 0 };
         let mut clicked = false;
-        if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) } > 0 {
+        if unsafe { libc::poll(&mut fd, 1, timeout) } > 0 {
             for click in c.drain() {
                 let Some(slot) = (click.block as usize).checked_sub(1).and_then(|i| slots.get_mut(i)) else {
                     continue;

@@ -1,13 +1,8 @@
 //! What stanley writes for dwl's bar, and what dwl writes back.
 //!
-//! One line per tick. A block starts with `BLOCK` and an index byte; bytes
-//! 0x01..=0x0f select a color role and take no width.
-//!
-//! Protocol 2 opens each of three sections with a byte of its own and names
-//! roles through the table in docs/design.md. Protocol 1 is what slstatus
-//! wrote: no sections, and a role's byte is dwl's `Scheme` index plus one.
-//! Widgets always paint protocol 2 bytes; `to_v1` translates a finished line
-//! for a dwl that predates the table.
+//! One line per tick, in three sections, each opened by a byte of its own. A
+//! block starts with `BLOCK` and an index byte; bytes 0x01..=0x0e select a
+//! color role and take no width. docs/design.md has the role table.
 
 /// Starts a block. dwl strips it and the index byte after it.
 pub const BLOCK: char = '\x1f';
@@ -23,17 +18,6 @@ pub const MAX_BLOCKS: usize = 0x7e - INDEX_BASE as usize;
 pub const LEFT: char = '\x1c';
 pub const CENTER: char = '\x1d';
 pub const RIGHT: char = '\x1e';
-
-/// Which protocol dwl reads. stanley is piped into dwl, not started by it,
-/// so the session asks `dwl -p` and passes the answer on in
-/// `DWL_BAR_PROTOCOL`. Anything else, an old dwl included, means 1.
-pub fn version() -> u32 {
-    if std::env::var("DWL_BAR_PROTOCOL").is_ok_and(|v| v.trim() == "2") {
-        2
-    } else {
-        1
-    }
-}
 
 /// A color role. stanley says what a run of text means; dwl decides its color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -63,8 +47,8 @@ pub enum Role {
 }
 
 impl Role {
-    /// The protocol 2 selector byte. 0x0a is skipped: dwl reads the status
-    /// a line at a time.
+    /// The selector byte. 0x0a is skipped: dwl reads the status a line at a
+    /// time.
     pub fn ch(self) -> char {
         match self {
             Role::Normal => '\x01',
@@ -82,29 +66,6 @@ impl Role {
             Role::Muted => '\x0e',
         }
     }
-}
-
-/// A protocol 2 line's role bytes as protocol 1 spells them. `FillBg` becomes
-/// 0x0a, a newline, so the painted meter styles cannot work there; the box
-/// style does not use it.
-pub fn to_v1(line: &str) -> String {
-    line.chars()
-        .map(|c| match c {
-            '\x02' => '\x04',
-            '\x03' => '\x05',
-            '\x04' => '\x06',
-            '\x05' => '\x07',
-            '\x06' => '\x08',
-            '\x07' => '\x09',
-            '\x08' => '\x0a',
-            '\x09' => '\x0b',
-            '\x0b' => '\x0c',
-            '\x0c' => '\x0d',
-            '\x0d' => '\x0e',
-            '\x0e' => '\x0f',
-            c => c,
-        })
-        .collect()
 }
 
 /// `text` in `role`, then back to the bar's foreground.
@@ -143,11 +104,6 @@ mod tests {
     #[test]
     fn paint_resets() {
         assert_eq!(paint(Role::Crit, "x"), "\x02x\x01");
-    }
-
-    #[test]
-    fn v1_bytes_are_dwl_schemes_plus_one() {
-        assert_eq!(to_v1("\x01a\x02b\x0ec\x1f!"), "\x01a\x04b\x0fc\x1f!");
     }
 
     #[test]

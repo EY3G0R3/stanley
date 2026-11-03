@@ -1,23 +1,24 @@
 # stanley design
 
-stanley is the status bar content for dwl. It replaces slstatus, the
-`slstatus-action` click router and the per-host `hidden` lists. It is named
-after the clock-watcher in *The Office*, alongside dwight and sprinkles, and
-"st..." echoes status.
+stanley is the status bar content for dwl: the blocks on the bar, what their
+clicks do, and the popups that open from them. It replaced slstatus, its
+`slstatus-action` click router and `slstatus-panel` popups, and the per-host
+`hidden` lists. It is named after the clock-watcher in *The Office*,
+alongside dwight and sprinkles, and "st..." echoes status.
 
 ## Terms
 
 - **Block**: what sits on the bar, its reading and its click
   (`src/blocks/`, Rust). The protocol, dwl and `BLOCK_*` use the same word.
-- **Popup**: what opens from a block (`src/popups/`, Python GTK, phase 3).
+- **Popup**: what opens from a block (`src/popups/`, Python GTK).
 - **Widget**: a name in the bar file, covering both, as in `cpu icon gauge`.
 
 ## Goals
 
 - One file per machine describes the whole bar: which widgets, in what order,
-  and which parts of each (icon, name, gauge, extra).
-- A widget is one source file. Adding one does not mean touching a list of
-  functions, a format table and a click router.
+  where, and which parts of each (icon, name, gauge, extra).
+- A block is one source file, with its reading and its click. Adding one does
+  not mean touching a format table and a click router.
 - Collect only what is shown. An unlisted widget is never constructed, so it
   costs nothing. Detail data (process tables, device lists) belongs to the
   popup that shows it, and is read only while that popup is open.
@@ -28,67 +29,62 @@ after the clock-watcher in *The Office*, alongside dwight and sprinkles, and
 | Part | Owner |
 |---|---|
 | Tags, layout symbol, urgency, drawing, click hit-testing, palette | dwl |
-| Bar content: widgets, their readings, their order | stanley |
-| Popups (detail views) | Python GTK, run on click |
+| Bar content: blocks, their readings, order and sections, their clicks | stanley |
+| Popups (detail views) | stanley, `src/popups/`, run on click |
 
-dwl stays the renderer and owns the palette. stanley sends text, color roles
-and block markers; it never names a color.
-
-## Phases
-
-1. **Drop-in replacement for `slstatus -s`.** Same protocol to dwl, so dwl does
-   not change. The bar file replaces `config.def.h` composition and `hidden`.
-   Click commands come from the bar file; they still call `slstatus-action`.
-   Switching is one line in `dwl-session`, and switching back is as easy.
-2. **dwl protocol v2.** Sections (left, center, right) so the clock can stay
-   centred; clock, date and hostname move from dwl into stanley as widgets;
-   dwl maps roles through a documented table instead of its `Scheme` enum.
-3. **Popups move in, slstatus retires.** `slstatus-panel` becomes
-   `src/popups/`, `slstatus-action` becomes block clicks in Rust, and every
-   slstatus shim goes. See the phase 3 plan.
-
-This document plans phase 1 in detail. "Status and next work" at the end
-sketches what comes next, enough to pick the work up on another machine.
+dwl stays the renderer and owns the palette. stanley sends text, color roles,
+block markers and section markers; it never names a color.
 
 ## The bar file
 
 `~/.config/stanley/bar`, a yadm alternate per host (`bar##hostname.fractal`).
-When it is missing, stanley uses the built-in `bar.example`.
+When it is missing, stanley uses the built-in `bar.example`, which documents
+the format and lists the widgets.
 
 ```
-# set <key> <value> lines first, then one widget per line in bar order.
 set meter-style box
 
-top       extra                  click: slstatus-action top
+section left
+hostname   name
+date       extra
 
-cpu       icon gauge             click: slstatus-action cpu
-disk      icon gauge             click: slstatus-action disk
-audio     icon gauge             click: slstatus-action audio
-mic       extra                  click: slstatus-action audio
+section center
+clock      extra
 
-memory    icon                   click: slstatus-action memory
-tmp       icon                   click: slstatus-action panel igorg.tmp-quota
-record    icon                   click: slstatus-action record
+section right
+top        extra
+
+cpu        icon gauge
+disk:/     icon gauge
+audio      icon gauge
+
+memory     icon
+battery    icon gauge extra
 ```
 
 - **Order** is line order. A widget that is not listed is hidden and never
   constructed.
+- **Sections**: `section left|center|right` puts the widgets after it there;
+  before any, they are on the right.
 - **Groups**: a blank line starts a group. Groups are separated by a wider gap,
   so gauges and bare icons do not mix.
 - **Parts**: any of `icon`, `name`, `gauge`, `extra`. No parts means every part
   the widget has. A widget that has nothing to show for the listed parts (the
   mic when it is off) drops out of the bar entirely, gap and all.
 - **Argument**: `disk:/home` passes `/home` to the widget.
-- **Click**: everything after `click:` is a shell command, run with
-  `BLOCK_BUTTON` set, as slstatus did.
+- **Click**: each block has its own (below). Everything after `click:` is a
+  shell command that replaces it, run with `BLOCK_BUTTON`, `BLOCK_X` and
+  `BLOCK_WIDTH` set.
 - **Settings** (`set key value`): `interval` (ms), `meter-style`,
   `meter-cells`, `warn-at`, `crit-at`, `gap`, `group-gap`, `icon-gap`.
 
-The file is read at start and on `SIGHUP` (`pkill -HUP stanley`).
+Words split on spaces, so arguments cannot hold one; the clock and date take
+no format argument for that reason. The file is read at start and on `SIGHUP`
+(`pkill -HUP stanley`); `stanley --check` validates it.
 
-## Widgets
+## Blocks
 
-A widget fills in a reading each time it is due:
+A block fills in a reading each time it is due:
 
 ```rust
 struct Reading {
@@ -100,146 +96,51 @@ struct Reading {
 ```
 
 Text may carry color roles inline (`protocol::paint`); text from outside
-goes through `protocol::clean` first. The renderer, not the widget, decides
-which parts appear, how they are spaced, and how a gauge is drawn. A widget
+goes through `protocol::clean` first. The renderer, not the block, decides
+which parts appear, how they are spaced, and how a gauge is drawn. A block
 sets its own refresh interval; between refreshes the bar reuses its last
-reading.
+reading. Audio and mic share one PulseAudio connection, kept open.
 
-Phase 1 widgets (parity with today's bar): `top`, `cpu`, `memory`, `disk`,
-`tmp`, `audio`, `mic`, `record`, `agents`, `messages`, `bluetooth`, `wifi`,
-`battery`.
+`Block::click(button)` returns a shell command to run, or does the work
+itself and returns none. A click ends the wait and forces its block's next
+read, so a volume change shows at once. Buttons count as in X11: 1 left,
+2 middle, 3 right, 4 and 5 a wheel notch.
 
-Audio keeps one PulseAudio connection open instead of reconnecting every
-second.
+| Block | Left | Other |
+|---|---|---|
+| cpu, memory, disk, tmp, messages | its popup | |
+| battery, wifi, bluetooth, agents | `power`, `network`, `bluetooth`, `agents` popup | |
+| audio, mic | `audio` popup | middle: mute; wheel: volume ±2 %, up to 100 % |
+| top | the btop scratchpad (`wtype` Super+Escape) | right: `cpu` popup |
+| record | stop a recording if one runs, else the `record` popup | |
+| clock, date | calendar (`yad`) | |
+| hostname | none | |
 
-## Protocol to dwl (phase 1: unchanged from slstatus)
+## Popups
 
-One line per tick on stdout.
+`stanley-popup NAME` opens a popup; calling it again with the same name
+closes it, another name replaces it, and Esc or a click outside closes it.
+With `BLOCK_X` and `BLOCK_WIDTH` set it is centred under the block, 4 px clear
+of either edge; without them it sits at the right edge.
 
-- A block starts with `0x1f` followed by `0x20 + index`, where index is the
-  widget's 1-based position in the bar file. dwl strips both bytes.
-- Bytes `0x01`..`0x0f` select a color role. Phase 1 roles are dwl's current
-  `Scheme` indices, listed in `src/protocol.rs`.
-- Clicks arrive as six bytes (block index, button, then x and the monitor's
-  width as little-endian u16) on `$XDG_RUNTIME_DIR/stanley-click`. Older
-  dwl builds write two bytes (block index, button) on
-  `$SLSTATUS_CLICK_FIFO`, else `$XDG_RUNTIME_DIR/slstatus-click`, and
-  stanley reads both. See Next 1.
-- On a closed stdout stanley dies of `SIGPIPE` (exit 141), which is how
-  `dwl-session` tells that dwl has gone. `SIGTERM` and `SIGINT` exit 0.
+`src/popups/stanley-popup` is the entry point: it preloads gtk4-layer-shell
+and re-executes itself, then imports `common.py` (colors, CSS, helpers, cairo
+drawing, the `Panel` base, the `Tab` outline, `place()`) and one module per
+popup: `network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `cpu`,
+`memory`, `disk` (all three on `gauge.py`), `messages`, `record`.
 
-## Layout
+## Protocol to dwl
 
-```
-stanley/
-  Cargo.toml  Makefile  bar.example
-  docs/design.md
-  src/
-    main.rs        loop, signals, output
-    config.rs      the bar file
-    render.rs      parts, spacing, groups
-    meter.rs       gauge styles
-    protocol.rs    block markers and color roles
-    click.rs       click FIFO and dispatch
-    blocks/        one file per block, plus mod.rs (Reading, registry)
-```
-
-`make` builds; `make install` symlinks the binary into `~/.local/bin`.
-
-## Phase 1 acceptance
-
-- With a bar file matching fractal's current bar, stanley's output draws the
-  same blocks in the same order with the same colors as slstatus.
-- Clicks on every block run the configured command.
-- `pkill -HUP stanley` re-reads the bar file; `pkill stanley` restarts it
-  through `dwl-session`.
-- An unlisted widget is never constructed (audio without `audio` or `mic`
-  opens no PulseAudio connection).
-
-## Status and next work
-
-As of 2026-11-02 PST.
-
-**Done: phase 1.** stanley is the live bar on fractal. `~/bin/dwl-session`
-(yadm) runs `stanley` where it is installed and `slstatus -s` elsewhere.
-Bar files are yadm alternates in `~/.config/stanley/`.
-
-**Done: phase 2** (branch `protocol-v2` here and in dwl). Sections, the
-role table, `dwl -p`, and the clock, date and hostname widgets, as planned
-under Next 2. Checked headless: v1 lines draw pixel for pixel as before,
-and the v2 bar puts the clock, host name and date where dwl drew them.
-Clicks on the left and center sections are not yet checked on a live
-session. Painted meter styles are now possible on dwl but untried.
-
-**Done: Next 1** (branch `click-position` here, in dwl and in slstatus),
-as planned below. Checked: stanley sets `BLOCK_X` and `BLOCK_WIDTH` from a
-six-byte click and only `BLOCK_BUTTON` from a two-byte one, and
-`slstatus-panel` opens under x=150, 700 and 1270 on a headless 1280 px
-output, clamped at the edges. dwl's side (the pointer position it sends)
-is not yet checked on a live session.
-
-### Setting up another machine
-
-1. Install the Rust toolchain and libpulse headers (Ubuntu: `libpulse-dev`;
-   Arch: `libpulse`).
-2. `git clone git@github.com:EY3G0R3/stanley.git ~/src/stanley`
-3. `cd ~/src/stanley && make install` builds and symlinks `~/.local/bin/stanley`.
-4. Check the host's bar file: `stanley --check` exits 0 when it is clean.
-   Without a `bar##hostname.<host>` file the built-in `bar.example` applies.
-5. Restart dwl (log out and in), or `pkill -x slstatus` once `dwl-session`
-   from yadm is current: its loop picks stanley on the next start.
-
-### Next 1: popups open under their block
-
-**Problem.** Every popup opens at the right edge, even for a block on the
-left. `slstatus-panel` aligns its card with `halign=END` and never learns
-where the click was: dwl sends only the block and the button.
-
-**Fix.** A click message that carries the position, on a new FIFO so old and
-new ends never misread each other:
-
-- dwl (`sendstatusclick`, `src/dwl/dwl.c`) writes 6 bytes to
-  `$XDG_RUNTIME_DIR/stanley-click`: block, button, then x and the monitor
-  width as little-endian u16, both monitor-local logical pixels
-  (`cursor->x - selmon->m.x` and `selmon->m.width`). If that FIFO cannot be
-  opened (no stanley reading it), it writes the old 2 bytes to
-  `slstatus-click`, so slstatus keeps working.
-- stanley (`src/click.rs`) reads both FIFOs while old dwl builds are
-  around, and runs the click command with `BLOCK_X` and `BLOCK_WIDTH` set.
-  The scroll path in dwl (`axisnotify`) sends the same message.
-- `slstatus-panel` reads `BLOCK_X` and `BLOCK_WIDTH`. With them, the card
-  goes `halign=START` with `margin_start` = x minus half the card's natural
-  width, clamped to 4 px from either edge. Without them, it stays right
-  aligned as now. `slstatus-action` passes the environment through.
-
-**Check.** Click CPU on the left: the popup opens under it. Click the
-battery at the right edge: the popup stays on screen.
-
-### Next 2: phase 2, dwl protocol v2
-
-- **Sections.** A section byte before blocks (left, center, right), so dwl can
-  lay out tags, then stanley's left section, the center section in the
-  middle, and the right section at the end.
-- **Clock, date, hostname** become stanley widgets, so each host can show
-  them as icon or text, or not at all. dwl's own clock code (`drawbar`,
-  `clockx`, `datex`) goes; its clock click becomes an ordinary block click.
-- **Role table.** dwl maps role bytes through a fixed, documented table
-  instead of indexing its `Scheme` enum. That also frees 0x0a (a newline)
-  so the painted meter styles can work.
-- **Click FIFO rename** is done by Next 1.
-
-#### Phase 2 plan
-
-**Byte values.** A v2 line is three sections, always all three, in order:
+One line per tick on stdout, in three sections, always all three:
 
 ```
 0x1c <left blocks> 0x1d <center blocks> 0x1e <right blocks>
 ```
 
-Inside a section, blocks are as in phase 1: `0x1f`, then `0x20 + index`,
-then text. The index is still the widget's position in the whole bar file,
-so clicks and the click FIFO do not change. Role bytes go through this
-table, which skips 0x0a:
+- A block starts with `0x1f` followed by `0x20 + index`, where index is the
+  widget's 1-based position in the whole bar file. dwl strips both bytes.
+- Role bytes select a color and take no width. dwl maps them through this
+  table, which skips 0x0a because a newline ends the line:
 
 | Byte | Role | dwl scheme |
 |---|---|---|
@@ -257,104 +158,80 @@ table, which skips 0x0a:
 | 0x0d | BgCrit | SchemeToneCrit |
 | 0x0e | Muted | SchemeMuted |
 
-**Bar file.** `section left`, `section center` and `section right` start a
-section; widgets before any `section` line are on the right, so phase 1 bar
-files still work. New widgets: `clock` (`%I:%M %p`), `date` (`%Y-%m-%d`) and
-`hostname`, as dwl drew them. They take no format argument: the clock's
-format has a space, and the bar file splits on spaces.
+- Clicks come back on the FIFO `$XDG_RUNTIME_DIR/stanley-click`, six bytes
+  each: block index, button, then the pointer's x and the monitor's width as
+  little-endian u16, monitor-local logical pixels.
+- On a closed stdout stanley dies of `SIGPIPE` (exit 141), which is how
+  `dwl-session` tells that dwl has gone. `SIGTERM` and `SIGINT` exit 0.
 
-**How dwl lays it out.** dwl splits the line into the three sections when it
-reads it. The right section is drawn as the status is today: right aligned,
-on the selected monitor only. The center section is centred on the whole bar
-and drawn last, as the clock is today. The left section is centred in the
-space between the layout symbol and the center section, as the date and host
-name are today, and is left out unless it has a bar height of air on both
-sides. Left and center draw on every monitor, as the clock does. Each width
-is measured with `statusink`, the function the hit test uses, and dwl keeps
-each section's x and width for the hit test.
+**How dwl lays it out.** The right section is right aligned, on the selected
+monitor only. The center section is centred on the whole bar and drawn last.
+The left section is centred between the layout symbol and the center, and is
+left out unless it has a bar height of air on both sides. Left and center
+draw on every monitor. dwl measures each section with `statusink`, the
+function its hit test uses, and keeps each section's x and width for the hit
+test.
 
-**Coexistence.** stanley is piped into dwl, not started by it, so dwl cannot
-set its environment. Instead, `dwl -p` prints the bar protocol it reads
-(`2`). `dwl-session` and `dwl-nested` export `DWL_BAR_PROTOCOL` from it
-before starting the bar.
-
-- New dwl, new stanley: v2.
-- Old dwl: `-p` is an unknown option, the variable is empty, and stanley
-  writes phase 1 lines. Left and center widgets are left out, since old dwl
-  draws its own clock.
-- New dwl, slstatus or old stanley: a line with no section byte is v1. dwl
-  indexes `Scheme` and draws its own clock, date and host name as before.
-  That code goes once slstatus is retired.
-
-### Next 3: phase 3, popups move in
-
-The goal is to retire slstatus: no `slstatus`, `slstatus-action` or
-`slstatus-panel`, and no protocol 1 or `slstatus-click` left anywhere.
-
-#### Phase 3 plan
+## Layout
 
 ```
-src/
-  main.rs config.rs render.rs meter.rs protocol.rs click.rs
-  blocks/   one Rust file per block: its reading and its click
-  popups/   stanley-popup (entry), common.py, one module per popup
+stanley/
+  Cargo.toml  Makefile  bar.example  README.md
+  docs/design.md
+  src/
+    main.rs        loop, signals, output
+    config.rs      the bar file
+    render.rs      parts, spacing, groups, sections
+    meter.rs       gauge styles
+    protocol.rs    block and section markers, color roles
+    click.rs       click FIFO and running click commands
+    blocks/        one file per block, plus mod.rs (Reading, Block, registry)
+    popups/        stanley-popup, common.py, one module per popup
 ```
 
-Cargo compiles only what `main.rs` reaches, so Python under `src/` is
-ignored by the build. `make install` also links `~/.local/bin/stanley-popup`.
+Cargo compiles only what `main.rs` reaches, so the Python under `src/` is
+ignored by the build. `make` builds; `make install` symlinks
+`~/.local/bin/stanley` and `~/.local/bin/stanley-popup` into the checkout.
 
-**3a. Popups move in.** `slstatus-panel` becomes `src/popups/`: the shared
-parts (`Panel`, `Tab`, colors, CSS, `place()`) in `common.py`, one module per
-popup (`network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `gauge`
-with `cpu`, `memory` and `disk`, `messages`, `record`). `stanley-popup NAME`
-opens one, and a second call closes it, as now. Bar files switch their
-click lines to `stanley-popup NAME`.
+## Setting up another machine
 
-*Done*: all eleven popups open headless with live data. Omarchy's
-Quickshell panels are no longer used: fractal has no Quickshell, and
-silence used these popups already. So `stanley-popup` has no Quickshell
-branch, and under dwl the hidden Quickshell bar builds no widgets.
+stanley and dwl speak one protocol, so update and rebuild them together.
 
-**3b. Blocks handle their own clicks.** `Block` gains
-`click(&mut self, click: Click) -> Option<Command>`, beside `read`. A
-bar-file `click:` still overrides it; without one the block's own click
-runs. Defaults, from what `slstatus-action` does today:
+1. Install the Rust toolchain, the libpulse headers (Ubuntu: `libpulse-dev`;
+   Arch: `libpulse`), gtk4-layer-shell (Ubuntu: `gir1.2-gtk4layershell-1.0`),
+   `wtype` and `yad`.
+2. `git clone git@github.com:EY3G0R3/stanley.git ~/src/stanley`
+3. `cd ~/src/stanley && make install`
+4. `make -C ~/src/dwl` with the matching dwl.
+5. `stanley --check` exits 0 when the host's bar file is clean. Without a
+   `bar##hostname.<host>` file the built-in `bar.example` applies.
+6. Log out and in, so dwl and `dwl-session` (yadm) start fresh.
 
-| Block | Left | Other |
-|---|---|---|
-| cpu, memory, disk, tmp, messages | its popup | |
-| battery, wifi, bluetooth, agents | `power`, `network`, `bluetooth`, `agents` popup | |
-| audio, mic | `audio` popup | middle: mute; wheel: volume ±2 %, through the open PulseAudio connection |
-| top | the btop scratchpad (`wtype` Super+Escape) | right: `cpu` popup |
-| record | stop a recording if one runs, else the `record` popup | |
-| clock, date | calendar (`yad`, as now) | |
-| hostname | none | |
+## Next work
 
-The notification fallbacks in `slstatus-action` (for hosts without popups)
-are not carried over. Bar files drop their `click:` lines.
-
-*Done*: checked against the live PulseAudio server (wheel and middle
-click) and by feeding clicks into the FIFO (popups). After this nothing
-calls `slstatus-action`.
-
-**3c. Extension points.** A `script:COMMAND` widget runs a command at its
+**Extension points.** A `script:COMMAND` widget that runs a command at its
 interval and shows its output, so a widget can be shared as a script without
-touching Rust. `stanley-popup NAME` also looks in
+touching Rust. `stanley-popup NAME` also looking in
 `~/.config/stanley/popups/NAME.py`.
 
-**3d. Retire slstatus.** Once silence and fractal run 3a and 3b:
-
-- dwl: drop protocol 1, its own clock, date and host name, and the
-  `slstatus-click` fallback.
-- stanley: drop `to_v1`, the version check and reading `slstatus-click`.
-- yadm: drop the slstatus fallback in `dwl-session` and the slstatus cases in
-  `restart-desktop-component` and `wmbench`; reword comments that name it.
-- Remove the `slstatus*` links from `~/.local/bin` and archive the repo.
-
-### Known gaps
+## Known gaps
 
 - `agent-quota` (yadm, `~/.config/systemd/user`) fails its Codex half on
   fractal with `FileNotFoundError`, likely `codex` missing from systemd's
   PATH; its quota is what the agents popup shows.
 - The audio device table (`src/blocks/audio.rs`, `DEVICES`) is code. A new
-  headset needs a line there, as it did in slstatus.
+  headset needs a line there.
+- Painted meter styles are possible since the role table freed 0x0a, but
+  untried on dwl.
+
+## History
+
+1. **Drop-in for `slstatus -s`**, speaking slstatus's protocol so dwl did not
+   change; clicks still went through `slstatus-action`.
+2. **Sections and the role table.** The clock, date and host name moved from
+   dwl into stanley; protocol 1 lines still worked through a `dwl -p`
+   handshake.
+3. **Popups under their block.** dwl sends the click position.
+4. **slstatus retired.** `slstatus-panel` became `src/popups/`,
+   `slstatus-action` became block clicks, and protocol 1, dwl's own clock,
+   the `slstatus-click` FIFO and the handshake went.

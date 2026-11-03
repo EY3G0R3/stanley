@@ -2,20 +2,27 @@
 
 Status bar content for [dwl](https://codeberg.org/dwl/dwl). stanley watches
 the machine the way Stanley watches the clock, and writes one status line a
-second for dwl's bar to draw.
+second for dwl's bar to draw. Each block on the bar knows its own click, and
+the popups that open from them live here too.
 
-One file per machine says which widgets show, in what order, and which parts
-of each: icon, name, gauge, extra text.
+One file per machine says which widgets show, where, in what order, and
+which parts of each: icon, name, gauge, extra text.
 
 ```
-top        extra               click: slstatus-action top
+section left
+hostname   name
+date       extra
 
-cpu        icon gauge          click: slstatus-action cpu
-disk:/     icon gauge          click: slstatus-action disk
-audio      icon gauge          click: slstatus-action audio
+section center
+clock      extra
 
-memory     icon                click: slstatus-action memory
-battery    icon gauge extra    click: slstatus-action panel omarchy.power
+section right
+cpu        icon gauge
+disk:/     icon gauge
+audio      icon gauge
+
+memory     icon
+battery    icon gauge extra
 ```
 
 A widget that is not listed is never created, so it costs nothing.
@@ -23,21 +30,16 @@ A widget that is not listed is never created, so it costs nothing.
 
 ## Install
 
-Needs Rust and the libpulse headers.
+Needs Rust, the libpulse headers, gtk4-layer-shell, `wtype` and `yad`.
 
 ```
-make install    # builds, then symlinks ~/.local/bin/stanley
+make install    # builds, then links ~/.local/bin/stanley and stanley-popup
 stanley --check # validates ~/.config/stanley/bar
 ```
 
-Run it as dwl's status source:
-`DWL_BAR_PROTOCOL=$(dwl -p) stanley | dwl`. It speaks the bar protocol of
+Run it as dwl's status source: `stanley | dwl`. It speaks the bar protocol of
 the [EY3G0R3/dwl](https://github.com/EY3G0R3/dwl) fork: sections, block
-markers and color bytes on stdout, clicks back on a FIFO. Without
-`DWL_BAR_PROTOCOL=2` it speaks protocol 1, the one slstatus speaks, for an
-older dwl.
+markers and color bytes on stdout, clicks back on a FIFO. Update and rebuild
+the two together.
 
-## Status
-
-Phase 2 of three. See [docs/design.md](docs/design.md) for the design, the
-protocol, and what comes next.
+See [docs/design.md](docs/design.md) for the design and the protocol.
