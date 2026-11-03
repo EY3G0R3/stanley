@@ -112,9 +112,11 @@ One line per tick on stdout.
   widget's 1-based position in the bar file. dwl strips both bytes.
 - Bytes `0x01`..`0x0f` select a color role. Phase 1 roles are dwl's current
   `Scheme` indices, listed in `src/protocol.rs`.
-- Clicks arrive as two bytes (block index, button) on the FIFO
-  `$SLSTATUS_CLICK_FIFO`, else `$XDG_RUNTIME_DIR/slstatus-click`. That is the
-  path dwl writes today; phase 2 renames it.
+- Clicks arrive as six bytes (block index, button, then x and the monitor's
+  width as little-endian u16) on `$XDG_RUNTIME_DIR/stanley-click`. Older
+  dwl builds write two bytes (block index, button) on
+  `$SLSTATUS_CLICK_FIFO`, else `$XDG_RUNTIME_DIR/slstatus-click`, and
+  stanley reads both. See Next 1.
 - On a closed stdout stanley dies of `SIGPIPE` (exit 141), which is how
   `dwl-session` tells that dwl has gone. `SIGTERM` and `SIGINT` exit 0.
 
@@ -160,6 +162,13 @@ under Next 2. Checked headless: v1 lines draw pixel for pixel as before,
 and the v2 bar puts the clock, host name and date where dwl drew them.
 Clicks on the left and center sections are not yet checked on a live
 session. Painted meter styles are now possible on dwl but untried.
+
+**Done: Next 1** (branch `click-position` here, in dwl and in slstatus),
+as planned below. Checked: stanley sets `BLOCK_X` and `BLOCK_WIDTH` from a
+six-byte click and only `BLOCK_BUTTON` from a two-byte one, and
+`slstatus-panel` opens under x=150, 700 and 1270 on a headless 1280 px
+output, clamped at the edges. dwl's side (the pointer position it sends)
+is not yet checked on a live session.
 
 ### Setting up another machine
 
