@@ -1,10 +1,14 @@
 """Audio outputs, inputs and volume."""
 
 import json
+import os
 
 from gi.repository import Gtk
 
 from common import Panel, clear, hbox, label, row, run, run_async, vbox
+
+# The same switch win+[ and friends use: one card on, the others off.
+SET_CARD = os.path.expanduser("~/bin/igoraudio-set-card")
 
 
 class Audio(Panel):
@@ -39,6 +43,31 @@ class Audio(Panel):
         default = run(["pactl", "get-default-" + kind]).strip()
         return devs, default
 
+    @staticmethod
+    def outputs():
+        """Output cards as (role, card name, description), for igoraudio-set-card.
+
+        Switching turns the other cards off, so a card can have no sink yet;
+        list cards, not sinks, or an off card could never be picked."""
+        try:
+            cards = json.loads(run(["pactl", "-f", "json", "list", "cards"]) or "[]")
+        except ValueError:
+            cards = []
+        found = []
+        for c in cards:
+            profiles = [p for p in c.get("profiles", {}) if p != "off"]
+            if all(p.startswith("input:") for p in profiles):
+                continue  # webcams and other input-only cards
+            props = c.get("properties", {})
+            if props.get("device.bus") == "bluetooth":
+                role = "bluetooth"
+            elif any("hdmi" in p.lower() for p in profiles):
+                role = "hdmi"
+            else:
+                role = "headphones"
+            found.append((role, c["name"], props.get("device.description", c["name"])))
+        return found
+
     def slider(self, kind, dev):
         mute = Gtk.Button(label=("󰝟" if dev["mute"] else "󰕾") if kind == "sink"
                           else ("󰍭" if dev["mute"] else "󰍬"))
@@ -71,8 +100,18 @@ class Audio(Panel):
         src = next((s for s in sources if s["name"] == dsource), None)
         if src:
             self.body.append(self.slider("source", src))
-        for heading, kind, devs, default in (("OUTPUT", "sink", sinks, dsink),
-                                             ("INPUT", "source", sources, dsource)):
+        outputs = self.outputs()
+        if outputs:
+            self.body.append(label("OUTPUT", "sect"))
+            box = vbox(4)
+            live = cur["properties"].get("device.name") if cur else None
+            glyphs = {"bluetooth": "󰋋", "hdmi": "󰍹", "headphones": "󰓃"}
+            for role, card, desc in outputs:
+                box.append(row(glyphs[role], desc, role.upper(), current=card == live,
+                               on_click=lambda r=role: run_async(
+                                   [SET_CARD, r], lambda *_: self.refresh())))
+            self.body.append(box)
+        for heading, kind, devs, default in (("INPUT", "source", sources, dsource),):
             if len(devs) < 1:
                 continue
             self.body.append(label(heading, "sect"))
