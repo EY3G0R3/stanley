@@ -15,9 +15,7 @@ is a module beside this file; common.py has what they share.
 
 import ctypes.util
 import os
-import shutil
 import signal
-import subprocess
 import sys
 
 # gtk4-layer-shell has to be loaded before libwayland-client, which Python
@@ -53,28 +51,6 @@ CLASSES = dict(network=Network, bluetooth=Bluetooth, audio=Audio, power=Power, t
                cpu=Cpu, memory=Memory, disk=Disk, messages=Messages, record=Record)
 POPUPS = tuple(CLASSES)
 STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "stanley-popup")
-
-
-# ------------------------------------------------------------- quickshell
-
-# Omarchy's shell has its own panels for these, by plugin id. It opens a panel
-# only from its own live bar widget, so under dwl it runs with that bar
-# hidden. stanley starts before dwl and keeps the outer WAYLAND_DISPLAY,
-# hence --any-display. STANLEY_POPUPS=python keeps them here instead.
-QUICKSHELL = {"network": "omarchy.network", "bluetooth": "omarchy.bluetooth",
-              "power": "omarchy.power", "tmp": "igorg.tmp-quota", "agents": "omarchy.agents"}
-
-
-def quickshell(name):
-    """Toggle Omarchy's panel for name where its shell runs; False if not."""
-    shell = os.environ.get("STANLEY_QUICKSHELL", "/usr/share/omarchy/shell")
-    if (os.environ.get("STANLEY_POPUPS") == "python" or name not in QUICKSHELL
-            or not shutil.which("quickshell") or not os.path.isdir(shell)):
-        return False
-    subprocess.run(["quickshell", "ipc", "-p", shell, "--any-display", "call", "shell",
-                    "toggle", QUICKSHELL[name], ""],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return True
 
 
 # ------------------------------------------------------------- toggling
@@ -170,8 +146,6 @@ def main():
     if not LIB:
         sys.exit("stanley-popup: install gir1.2-gtk4layershell-1.0")
     name = sys.argv[1]
-    if quickshell(name):
-        return
     if not take_over(name):
         return
     app = App(name)

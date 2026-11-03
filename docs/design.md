@@ -307,13 +307,13 @@ ignored by the build. `make install` also links `~/.local/bin/stanley-popup`.
 parts (`Panel`, `Tab`, colors, CSS, `place()`) in `common.py`, one module per
 popup (`network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `gauge`
 with `cpu`, `memory` and `disk`, `messages`, `record`). `stanley-popup NAME`
-opens one, and a second call closes it, as now. It also makes the
-Quickshell choice that `slstatus-action panel` made: where Omarchy's shell
-runs, `network`, `bluetooth`, `power`, `tmp` and `agents` open its panels.
-Bar files switch their click lines to `stanley-popup NAME`.
+opens one, and a second call closes it, as now. Bar files switch their
+click lines to `stanley-popup NAME`.
 
-*Done* (branch `phase3`): all eleven popups open headless with live data.
-Host bar files and `STANLEY_POPUPS` in yadm switch when the branch merges.
+*Done*: all eleven popups open headless with live data. Omarchy's
+Quickshell panels are no longer used: fractal has no Quickshell, and
+silence used these popups already. So `stanley-popup` has no Quickshell
+branch, and under dwl the hidden Quickshell bar builds no widgets.
 
 **3b. Blocks handle their own clicks.** `Block` gains
 `click(&mut self, click: Click) -> Option<Command>`, beside `read`. A
