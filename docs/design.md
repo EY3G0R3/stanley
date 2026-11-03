@@ -1,0 +1,146 @@
+# stanley design
+
+stanley is the status bar content for dwl. It replaces slstatus, the
+`slstatus-action` click router and the per-host `hidden` lists. It is named
+after the clock-watcher in *The Office*, alongside dwight and sprinkles, and
+"st..." echoes status.
+
+## Goals
+
+- One file per machine describes the whole bar: which widgets, in what order,
+  and which parts of each (icon, name, gauge, extra).
+- A widget is one source file. Adding one does not mean touching a list of
+  functions, a format table and a click router.
+- Collect only what is shown. An unlisted widget is never constructed, so it
+  costs nothing. Detail data (process tables, device lists) belongs to the
+  popup that shows it, and is read only while that popup is open.
+- No JSON anywhere, and no extra processes per tick.
+
+## Split of work
+
+| Part | Owner |
+|---|---|
+| Tags, layout symbol, urgency, drawing, click hit-testing, palette | dwl |
+| Bar content: widgets, their readings, their order | stanley |
+| Popups (detail views) | Python GTK, run on click |
+
+dwl stays the renderer and owns the palette. stanley sends text, color roles
+and block markers; it never names a color.
+
+## Phases
+
+1. **Drop-in replacement for `slstatus -s`.** Same protocol to dwl, so dwl does
+   not change. The bar file replaces `config.def.h` composition and `hidden`.
+   Click commands come from the bar file; they still call `slstatus-action`.
+   Switching is one line in `dwl-session`, and switching back is as easy.
+2. **dwl protocol v2.** Sections (left, center, right) so the clock can stay
+   centred; clock, date and hostname move from dwl into stanley as widgets;
+   dwl maps roles through a documented table instead of its `Scheme` enum.
+3. **Popups move in.** `slstatus-panel` becomes `panels/` here, one module per
+   widget, and `slstatus-action` routing is retired.
+
+This document plans phase 1 in detail; phases 2 and 3 get their own plans.
+
+## The bar file
+
+`~/.config/stanley/bar`, a yadm alternate per host (`bar##hostname.fractal`).
+When it is missing, stanley uses the built-in `bar.example`.
+
+```
+# set <key> <value> lines first, then one widget per line in bar order.
+set meter-style box
+
+top       extra                  click: slstatus-action top
+
+cpu       icon gauge             click: slstatus-action cpu
+disk      icon gauge             click: slstatus-action disk
+audio     icon gauge             click: slstatus-action audio
+mic       extra                  click: slstatus-action audio
+
+memory    icon                   click: slstatus-action memory
+tmp       icon                   click: slstatus-action panel igorg.tmp-quota
+record    icon                   click: slstatus-action record
+```
+
+- **Order** is line order. A widget that is not listed is hidden and never
+  constructed.
+- **Groups**: a blank line starts a group. Groups are separated by a wider gap,
+  so gauges and bare icons do not mix.
+- **Parts**: any of `icon`, `name`, `gauge`, `extra`. No parts means every part
+  the widget has. A widget that has nothing to show for the listed parts (the
+  mic when it is off) drops out of the bar entirely, gap and all.
+- **Argument**: `disk:/home` passes `/home` to the widget.
+- **Click**: everything after `click:` is a shell command, run with
+  `BLOCK_BUTTON` set, as slstatus did.
+- **Settings** (`set key value`): `interval` (ms), `meter-style`,
+  `meter-cells`, `warn-at`, `crit-at`, `gap`, `group-gap`, `icon-gap`.
+
+The file is read at start and on `SIGHUP` (`pkill -HUP stanley`).
+
+## Widgets
+
+A widget fills in a reading each time it is due:
+
+```rust
+struct Reading {
+    icon: Option<String>,  // a glyph; may change (headset vs HDMI, plug vs battery)
+    name: Option<String>,  // short label: "CPU", or the audio card's name
+    gauge: Option<Gauge>,  // value 0..100, marked share, severity
+    extra: Option<String>, // detail text: process list, percent, fix count
+}
+```
+
+Text may carry color roles inline (`protocol::paint`); text from outside
+goes through `protocol::clean` first. The renderer, not the widget, decides
+which parts appear, how they are spaced, and how a gauge is drawn. A widget
+sets its own refresh interval; between refreshes the bar reuses its last
+reading.
+
+Phase 1 widgets (parity with today's bar): `top`, `cpu`, `memory`, `disk`,
+`tmp`, `audio`, `mic`, `record`, `agents`, `messages`, `bluetooth`, `wifi`,
+`battery`.
+
+Audio keeps one PulseAudio connection open instead of reconnecting every
+second.
+
+## Protocol to dwl (phase 1: unchanged from slstatus)
+
+One line per tick on stdout.
+
+- A block starts with `0x1f` followed by `0x20 + index`, where index is the
+  widget's 1-based position in the bar file. dwl strips both bytes.
+- Bytes `0x01`..`0x0f` select a color role. Phase 1 roles are dwl's current
+  `Scheme` indices, listed in `src/protocol.rs`.
+- Clicks arrive as two bytes (block index, button) on the FIFO
+  `$SLSTATUS_CLICK_FIFO`, else `$XDG_RUNTIME_DIR/slstatus-click`. That is the
+  path dwl writes today; phase 2 renames it.
+- On a closed stdout stanley dies of `SIGPIPE` (exit 141), which is how
+  `dwl-session` tells that dwl has gone. `SIGTERM` and `SIGINT` exit 0.
+
+## Layout
+
+```
+stanley/
+  Cargo.toml  Makefile  bar.example
+  docs/design.md
+  src/
+    main.rs        loop, signals, output
+    config.rs      the bar file
+    render.rs      parts, spacing, groups
+    meter.rs       gauge styles
+    protocol.rs    block markers and color roles
+    click.rs       click FIFO and dispatch
+    widgets/       one file per widget, plus mod.rs (Reading, registry)
+```
+
+`make` builds; `make install` symlinks the binary into `~/.local/bin`.
+
+## Phase 1 acceptance
+
+- With a bar file matching fractal's current bar, stanley's output draws the
+  same blocks in the same order with the same colors as slstatus.
+- Clicks on every block run the configured command.
+- `pkill -HUP stanley` re-reads the bar file; `pkill stanley` restarts it
+  through `dwl-session`.
+- An unlisted widget is never constructed (audio without `audio` or `mic`
+  opens no PulseAudio connection).
