@@ -196,15 +196,15 @@ fn wait(deadline: Instant, clicks: &mut Option<click::Clicks>, slots: &[Slot]) {
             unsafe { libc::poll(std::ptr::null_mut(), 0, timeout) };
             continue;
         };
-        let mut fd = libc::pollfd { fd: c.fd(), events: libc::POLLIN, revents: 0 };
-        if unsafe { libc::poll(&mut fd, 1, timeout) } > 0 {
-            for (block, button) in c.drain() {
-                let command = (block as usize)
+        let mut fds = c.pollfds();
+        if unsafe { libc::poll(fds.as_mut_ptr(), fds.len() as libc::nfds_t, timeout) } > 0 {
+            for click in c.drain() {
+                let command = (click.block as usize)
                     .checked_sub(1)
                     .and_then(|i| slots.get(i))
                     .and_then(|slot| slot.entry.click.as_deref());
                 if let Some(command) = command {
-                    c.run(command, button);
+                    c.run(command, click);
                 }
             }
         }
