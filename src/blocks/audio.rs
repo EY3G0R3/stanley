@@ -4,7 +4,7 @@
 //! One connection stays open for the life of the bar and is shared by the
 //! `audio` and `mic` widgets; it is opened only if one of them is on the bar.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use crate::meter::Gauge;
 use crate::protocol::{paint, Role};
 use libpulse_binding as pulse;
@@ -224,7 +224,7 @@ impl Audio {
     }
 }
 
-impl Widget for Audio {
+impl Block for Audio {
     fn read(&mut self) -> Reading {
         match self.pulse.borrow_mut().snapshot() {
             Some(s) => Reading {
@@ -254,7 +254,7 @@ impl Mic {
     }
 }
 
-impl Widget for Mic {
+impl Block for Mic {
     fn read(&mut self) -> Reading {
         if !self.pulse.borrow_mut().snapshot().is_some_and(|s| s.mic_live) {
             return Reading::default();

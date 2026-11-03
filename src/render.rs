@@ -3,7 +3,7 @@
 use crate::config::{Parts, Section, Settings};
 use crate::meter;
 use crate::protocol::{is_blank, to_v1, Role, BLOCK, CENTER, INDEX_BASE, LEFT, RIGHT};
-use crate::widgets::Reading;
+use crate::blocks::Reading;
 
 /// One widget's text: its listed parts that have something to show, one space
 /// apart. Empty when none do, and then the widget drops out of the bar.

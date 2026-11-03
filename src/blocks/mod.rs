@@ -1,4 +1,5 @@
-//! Widgets: one file each. A widget only reads; `render` decides what shows.
+//! Blocks: what sits on the bar, one file each. A block only reads; `render`
+//! decides what shows. The bar file names them as widgets.
 
 mod audio;
 mod battery;
@@ -29,7 +30,7 @@ pub struct Reading {
     pub extra: Option<String>,
 }
 
-pub trait Widget {
+pub trait Block {
     /// Take a fresh reading.
     fn read(&mut self) -> Reading;
 
@@ -71,7 +72,7 @@ struct Fixed {
     name: &'static str,
 }
 
-impl Widget for Fixed {
+impl Block for Fixed {
     fn read(&mut self) -> Reading {
         Reading { icon: Some(self.icon.into()), name: Some(self.name.into()), ..Reading::default() }
     }
@@ -94,7 +95,7 @@ impl Factory {
         Factory { pulse: None }
     }
 
-    pub fn build(&mut self, widget: &str, arg: Option<&str>) -> Result<Box<dyn Widget>, String> {
+    pub fn build(&mut self, widget: &str, arg: Option<&str>) -> Result<Box<dyn Block>, String> {
         Ok(match widget {
             "top" => Box::new(top::Top::new()),
             "cpu" => Box::new(cpu::Cpu::new()),

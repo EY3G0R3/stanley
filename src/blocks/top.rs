@@ -9,7 +9,7 @@
 //! Processes of one name count as one program, shown `name×K(N%)`: eleven
 //! fancylog processes at 1% each are one 11% fancylog, not eleven ties.
 
-use super::{dim, Reading, Widget};
+use super::{dim, Reading, Block};
 use crate::protocol::{clean, paint, Role};
 use std::collections::HashMap;
 use std::fs;
@@ -61,7 +61,7 @@ fn process(pid: &str) -> Option<(String, u64, u64)> {
     Some((comm, start, utime + stime))
 }
 
-impl Widget for Top {
+impl Block for Top {
     fn interval(&self) -> Option<Duration> {
         Some(EVERY)
     }

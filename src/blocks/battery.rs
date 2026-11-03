@@ -1,6 +1,6 @@
 //! The machine's battery, averaged over its batteries, from sysfs.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use crate::meter::Gauge;
 use crate::protocol::{paint, Role};
 use std::fs;
@@ -14,7 +14,7 @@ fn read_trim(path: &str) -> Option<String> {
     fs::read_to_string(path).ok().map(|s| s.trim().to_string())
 }
 
-impl Widget for Battery {
+impl Block for Battery {
     fn read(&mut self) -> Reading {
         let mut sum = 0u32;
         let mut count = 0u32;

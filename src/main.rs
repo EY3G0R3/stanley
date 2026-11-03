@@ -5,14 +5,14 @@ mod config;
 mod meter;
 mod protocol;
 mod render;
-mod widgets;
+mod blocks;
 
 use config::{Config, Entry};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use widgets::{Reading, Widget};
+use blocks::{Reading, Block};
 
 static STOP: AtomicBool = AtomicBool::new(false);
 static RELOAD: AtomicBool = AtomicBool::new(false);
@@ -96,7 +96,7 @@ fn load(options: &Options) -> (Config, usize) {
 /// widgets included, so a click's block index finds its line.
 struct Slot {
     entry: Entry,
-    widget: Option<Box<dyn Widget>>,
+    block: Option<Box<dyn Block>>,
     reading: Reading,
     due: Option<Instant>,
     text: String,
@@ -104,19 +104,19 @@ struct Slot {
 }
 
 fn build(config: &Config, problems: &mut usize) -> Vec<Slot> {
-    let mut factory = widgets::Factory::new();
+    let mut factory = blocks::Factory::new();
     config
         .entries
         .iter()
         .map(|entry| {
-            let widget = factory
+            let block = factory
                 .build(&entry.widget, entry.arg.as_deref())
                 .map_err(|e| {
                     *problems += 1;
                     eprintln!("stanley: {e}");
                 })
                 .ok();
-            Slot { entry: entry.clone(), widget, reading: Reading::default(), due: None, text: String::new(), bare: false }
+            Slot { entry: entry.clone(), block, reading: Reading::default(), due: None, text: String::new(), bare: false }
         })
         .collect()
 }
@@ -145,12 +145,12 @@ fn main() {
         let start = Instant::now();
 
         for slot in &mut slots {
-            let Some(widget) = slot.widget.as_mut() else { continue };
+            let Some(block) = slot.block.as_mut() else { continue };
             // Half a tick of slack keeps a widget due on the fifth tick from
             // slipping to the sixth when that tick lands a little early.
             if slot.due.is_none_or(|due| start + tick / 2 >= due) {
-                slot.reading = widget.read();
-                slot.due = widget.interval().map(|every| start + every);
+                slot.reading = block.read();
+                slot.due = block.interval().map(|every| start + every);
             }
             (slot.text, slot.bare) = render::block(slot.entry.parts, &slot.reading, &settings);
         }

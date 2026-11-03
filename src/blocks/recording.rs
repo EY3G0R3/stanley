@@ -1,6 +1,6 @@
 //! Whether ~/bin/screen-record is recording: red while it is, dim otherwise.
 
-use super::{dim, icon, Reading, Widget};
+use super::{dim, icon, Reading, Block};
 use crate::protocol::{paint, Role};
 use std::fs;
 
@@ -16,7 +16,7 @@ fn recording() -> Option<bool> {
     Some(matches!(comm.trim(), "gpu-screen-reco" | "wf-recorder"))
 }
 
-impl Widget for Recording {
+impl Block for Recording {
     fn read(&mut self) -> Reading {
         let on = recording().unwrap_or(false);
         let style = |s: &str| if on { paint(Role::Crit, s) } else { dim(s) };

@@ -5,6 +5,13 @@ stanley is the status bar content for dwl. It replaces slstatus, the
 after the clock-watcher in *The Office*, alongside dwight and sprinkles, and
 "st..." echoes status.
 
+## Terms
+
+- **Block**: what sits on the bar, its reading and its click
+  (`src/blocks/`, Rust). The protocol, dwl and `BLOCK_*` use the same word.
+- **Popup**: what opens from a block (`src/popups/`, Python GTK, phase 3).
+- **Widget**: a name in the bar file, covering both, as in `cpu icon gauge`.
+
 ## Goals
 
 - One file per machine describes the whole bar: which widgets, in what order,
@@ -133,7 +140,7 @@ stanley/
     meter.rs       gauge styles
     protocol.rs    block markers and color roles
     click.rs       click FIFO and dispatch
-    widgets/       one file per widget, plus mod.rs (Reading, registry)
+    blocks/        one file per block, plus mod.rs (Reading, registry)
 ```
 
 `make` builds; `make install` symlinks the binary into `~/.local/bin`.
@@ -290,5 +297,5 @@ data, only while open.
 - `agent-quota` (yadm, `~/.config/systemd/user`) fails its Codex half on
   fractal with `FileNotFoundError`, likely `codex` missing from systemd's
   PATH; its quota is what the agents popup shows.
-- The audio device table (`src/widgets/audio.rs`, `DEVICES`) is code. A new
+- The audio device table (`src/blocks/audio.rs`, `DEVICES`) is code. A new
   headset needs a line there, as it did in slstatus.

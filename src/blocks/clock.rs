@@ -1,6 +1,6 @@
 //! The time and the date, as dwl drew them before phase 2.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use std::ffi::CStr;
 
 /// The local time in a strftime format. `clock` and `date` differ only in
@@ -33,7 +33,7 @@ fn now(format: &CStr) -> Option<String> {
     (n > 0).then(|| String::from_utf8_lossy(&buf[..n]).into_owned())
 }
 
-impl Widget for Clock {
+impl Block for Clock {
     fn read(&mut self) -> Reading {
         Reading { icon: Some(self.icon.into()), extra: now(self.format), ..Reading::default() }
     }

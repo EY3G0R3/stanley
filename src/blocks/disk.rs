@@ -1,6 +1,6 @@
 //! How full a filesystem is. For /tmp: the per-user quota where there is one.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use crate::meter::Gauge;
 use std::ffi::CString;
 
@@ -57,7 +57,7 @@ fn user_quota(path: &CString) -> Option<u32> {
         .then(|| (q.curspace * 100 / (q.bhardlimit * 1024)) as u32)
 }
 
-impl Widget for Disk {
+impl Block for Disk {
     fn read(&mut self) -> Reading {
         let percent = if self.quota { user_quota(&self.path) } else { None }.or_else(|| filesystem(&self.path));
         let (icon, name) = if self.quota { (icon::TMP, "TMP") } else { (icon::DISK, "SSD") };

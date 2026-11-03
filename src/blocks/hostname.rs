@@ -1,6 +1,6 @@
 //! The machine's name, muted: it says which machine, it is not there to read.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use crate::protocol::{clean, paint, Role};
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ fn hostname() -> Option<String> {
     Some(clean(&String::from_utf8_lossy(&buf[..end])))
 }
 
-impl Widget for Hostname {
+impl Block for Hostname {
     fn read(&mut self) -> Reading {
         Reading {
             icon: Some(paint(Role::Muted, icon::HOST)),

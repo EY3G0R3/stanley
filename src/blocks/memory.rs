@@ -1,6 +1,6 @@
 //! Memory in use, with the tmpfs share marked inside the gauge.
 
-use super::{icon, Reading, Widget};
+use super::{icon, Reading, Block};
 use crate::meter::Gauge;
 
 pub struct Memory;
@@ -31,7 +31,7 @@ fn sample() -> Option<(u32, u32)> {
     Some(((100 * used / total) as u32, (100 * shmem / total) as u32))
 }
 
-impl Widget for Memory {
+impl Block for Memory {
     fn read(&mut self) -> Reading {
         let gauge = sample().map(|(used, shared)| Gauge { value: used, marked: shared, severity: used });
         Reading { icon: Some(icon::RAM.into()), name: Some("RAM".into()), gauge, extra: None }

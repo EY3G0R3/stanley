@@ -1,6 +1,6 @@
 //! Whether ~/bin/fix-my-messages runs, and how many fixes it made today.
 
-use super::{dim, icon, Reading, Widget};
+use super::{dim, icon, Reading, Block};
 use std::fs;
 
 pub struct Fixer;
@@ -25,7 +25,7 @@ fn state() -> Option<Option<u32>> {
     Some(if day.as_deref() == Some(today.as_str()) { count.filter(|&c| c > 0) } else { None })
 }
 
-impl Widget for Fixer {
+impl Block for Fixer {
     fn read(&mut self) -> Reading {
         match state() {
             // Off: a dim icon is the reminder.
