@@ -10,7 +10,7 @@
 # click:    each widget has its own (a popup, the volume, ...); a click:
 #           command replaces it, run with BLOCK_BUTTON, BLOCK_X, BLOCK_WIDTH
 # widgets:  top cpu memory disk tmp audio mic record agents messages
-#           bluetooth wifi battery clock date hostname
+#           bluetooth wifi battery kvm clock date hostname
 #           script:COMMAND shows the first line COMMAND prints (icon, a tab,
 #           then text; or just text), run every 10 s through sh -c. COMMAND
 #           is one word: put arguments in a wrapper script. For its popup,

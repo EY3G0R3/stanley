@@ -110,6 +110,7 @@ read, so a volume change shows at once. Buttons count as in X11: 1 left,
 |---|---|---|
 | cpu, memory, disk, tmp, messages | its popup | |
 | battery, wifi, bluetooth, agents | `power`, `network`, `bluetooth`, `agents` popup | |
+| kvm | `kvm` popup | |
 | audio, mic | `audio` popup | middle: mute; wheel: volume ±2 %, up to 100 % |
 | top | the btop scratchpad (`wtype` Super+Escape) | right: `cpu` popup |
 | record | stop a recording if one runs, else the `record` popup | |
@@ -137,7 +138,14 @@ of either edge; without them it sits at the right edge.
 and re-executes itself, then imports `common.py` (colors, CSS, helpers, cairo
 drawing, the `Panel` base, the `Tab` outline, `place()`) and one module per
 popup: `network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `cpu`,
-`memory`, `disk` (all three on `gauge.py`), `messages`, `record`.
+`memory`, `disk` (all three on `gauge.py`), `messages`, `record`, `kvm`.
+
+The `kvm` popup hands the monitor to another input, for a display that is
+also the KVM between two machines: switch to HDMI, USB-C or DisplayPort, or
+suspend this machine and switch. It runs `~/bin/switch-display-to-INPUT` and
+`~/bin/switch-display-and-sleep INPUT` (yadm), which hold the monitor's DDC
+values and check the switch before sleeping; command-center (Win+Space) offers
+the same six.
 
 **Drop-in popups.** A script block can have a popup without touching the
 repo: `stanley-popup NAME` also finds `NAME.py` in

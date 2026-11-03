@@ -77,6 +77,7 @@ pub mod icon {
     pub const CLOCK: &str = "\u{f017}";
     pub const CALENDAR: &str = "\u{f073}";
     pub const HOST: &str = "\u{f109}"; // a laptop
+    pub const KVM: &str = "\u{f1483}"; // a monitor with an arrow: hand it over
 }
 
 /// An icon whose click opens a popup that shows the live state, so the icon
@@ -100,7 +101,7 @@ impl Block for Fixed {
 /// The widgets a bar file can name, for error messages.
 pub const NAMES: &[&str] = &[
     "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "record", "agents", "messages",
-    "bluetooth", "wifi", "battery", "clock", "date", "hostname", "script",
+    "bluetooth", "wifi", "battery", "kvm", "clock", "date", "hostname", "script",
 ];
 
 /// Build every widget the bar file lists, and nothing else. Widgets that share
@@ -136,6 +137,7 @@ impl Factory {
             "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI", popup: "agents" }),
             "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT", popup: "bluetooth" }),
             "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI", popup: "network" }),
+            "kvm" => Box::new(Fixed { icon: icon::KVM, name: "KVM", popup: "kvm" }),
             _ => return Err(format!("unknown widget {widget:?}; known: {}", NAMES.join(", "))),
         })
     }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Popups for stanley's blocks on the dwl bar.
 
-    stanley-popup network|bluetooth|audio|power|tmp|agents|cpu|memory|disk|messages|record
+    stanley-popup network|bluetooth|audio|power|tmp|agents|cpu|memory|disk|messages|record|kvm
     stanley-popup NAME     # ~/.config/stanley/popups/NAME.py
 
 Running it again with the same name closes the open popup; another name
@@ -48,6 +48,7 @@ from audio import Audio  # noqa: E402
 from bluetooth import Bluetooth  # noqa: E402
 from cpu import Cpu  # noqa: E402
 from disk import Disk  # noqa: E402
+from kvm import Kvm  # noqa: E402
 from memory import Memory  # noqa: E402
 from messages import Messages  # noqa: E402
 from network import Network  # noqa: E402
@@ -56,7 +57,7 @@ from record import Record  # noqa: E402
 from tmp import Tmp  # noqa: E402
 
 CLASSES = dict(network=Network, bluetooth=Bluetooth, audio=Audio, power=Power, tmp=Tmp, agents=Agents,
-               cpu=Cpu, memory=Memory, disk=Disk, messages=Messages, record=Record)
+               cpu=Cpu, memory=Memory, disk=Disk, messages=Messages, record=Record, kvm=Kvm)
 POPUPS = tuple(CLASSES)
 DROP_INS = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
                         "stanley", "popups")
