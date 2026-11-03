@@ -39,7 +39,8 @@ and block markers; it never names a color.
 3. **Popups move in.** `slstatus-panel` becomes `panels/` here, one module per
    widget, and `slstatus-action` routing is retired.
 
-This document plans phase 1 in detail; phases 2 and 3 get their own plans.
+This document plans phase 1 in detail. "Status and next work" at the end
+sketches what comes next, enough to pick the work up on another machine.
 
 ## The bar file
 
@@ -144,3 +145,79 @@ stanley/
   through `dwl-session`.
 - An unlisted widget is never constructed (audio without `audio` or `mic`
   opens no PulseAudio connection).
+
+## Status and next work
+
+As of 2026-11-02 PST.
+
+**Done: phase 1.** stanley is the live bar on fractal. `~/bin/dwl-session`
+(yadm) runs `stanley` where it is installed and `slstatus -s` elsewhere.
+Bar files are yadm alternates in `~/.config/stanley/`.
+
+### Setting up another machine
+
+1. Install the Rust toolchain and libpulse headers (Ubuntu: `libpulse-dev`;
+   Arch: `libpulse`).
+2. `git clone git@github.com:EY3G0R3/stanley.git ~/src/stanley`
+3. `cd ~/src/stanley && make install` builds and symlinks `~/.local/bin/stanley`.
+4. Check the host's bar file: `stanley --check` exits 0 when it is clean.
+   Without a `bar##hostname.<host>` file the built-in `bar.example` applies.
+5. Restart dwl (log out and in), or `pkill -x slstatus` once `dwl-session`
+   from yadm is current: its loop picks stanley on the next start.
+
+### Next 1: popups open under their block
+
+**Problem.** Every popup opens at the right edge, even for a block on the
+left. `slstatus-panel` aligns its card with `halign=END` and never learns
+where the click was: dwl sends only the block and the button.
+
+**Fix.** A click message that carries the position, on a new FIFO so old and
+new ends never misread each other:
+
+- dwl (`sendstatusclick`, `src/dwl/dwl.c`) writes 6 bytes to
+  `$XDG_RUNTIME_DIR/stanley-click`: block, button, then x and the monitor
+  width as little-endian u16, both monitor-local logical pixels
+  (`cursor->x - selmon->m.x` and `selmon->m.width`). If that FIFO cannot be
+  opened (no stanley reading it), it writes the old 2 bytes to
+  `slstatus-click`, so slstatus keeps working.
+- stanley (`src/click.rs`) reads both FIFOs while old dwl builds are
+  around, and runs the click command with `BLOCK_X` and `BLOCK_WIDTH` set.
+  The scroll path in dwl (`axisnotify`) sends the same message.
+- `slstatus-panel` reads `BLOCK_X` and `BLOCK_WIDTH`. With them, the card
+  goes `halign=START` with `margin_start` = x minus half the card's natural
+  width, clamped to 4 px from either edge. Without them, it stays right
+  aligned as now. `slstatus-action` passes the environment through.
+
+**Check.** Click CPU on the left: the popup opens under it. Click the
+battery at the right edge: the popup stays on screen.
+
+### Next 2: phase 2, dwl protocol v2
+
+- **Sections.** A section byte before blocks (left, center, right), so dwl can
+  lay out tags, then stanley's left section, the center section in the
+  middle, and the right section at the end.
+- **Clock, date, hostname** become stanley widgets, so each host can show
+  them as icon or text, or not at all. dwl's own clock code (`drawbar`,
+  `clockx`, `datex`) goes; its clock click becomes an ordinary block click.
+- **Role table.** dwl maps role bytes through a fixed, documented table
+  instead of indexing its `Scheme` enum. That also frees 0x0a (a newline)
+  so the painted meter styles can work.
+- **Click FIFO rename** is done by Next 1.
+
+Plan it in its own section before coding: the byte values, how dwl measures
+the center section, and how stanley and an old dwl coexist.
+
+### Next 3: phase 3, popups move in
+
+`slstatus-panel` becomes `panels/` in this repo, one module per widget, run
+on click. `slstatus-action` routing is replaced by the click column, so a
+bar line says `click: stanley-panel cpu`. Popups collect their own detail
+data, only while open.
+
+### Known gaps
+
+- `agent-quota` (yadm, `~/.config/systemd/user`) fails its Codex half on
+  fractal with `FileNotFoundError`, likely `codex` missing from systemd's
+  PATH; its quota is what the agents popup shows.
+- The audio device table (`src/widgets/audio.rs`, `DEVICES`) is code. A new
+  headset needs a line there, as it did in slstatus.
