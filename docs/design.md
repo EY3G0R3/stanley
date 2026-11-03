@@ -333,6 +333,10 @@ runs. Defaults, from what `slstatus-action` does today:
 The notification fallbacks in `slstatus-action` (for hosts without popups)
 are not carried over. Bar files drop their `click:` lines.
 
+*Done*: checked against the live PulseAudio server (wheel and middle
+click) and by feeding clicks into the FIFO (popups). After this nothing
+calls `slstatus-action`.
+
 **3c. Extension points.** A `script:COMMAND` widget runs a command at its
 interval and shows its output, so a widget can be shared as a script without
 touching Rust. `stanley-popup NAME` also looks in
