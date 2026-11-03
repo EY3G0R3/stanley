@@ -145,7 +145,11 @@ also the KVM between two machines: switch to HDMI, USB-C or DisplayPort, or
 suspend this machine and switch. It runs `~/bin/switch-display-to-INPUT` and
 `~/bin/switch-display-and-sleep INPUT` (yadm), which hold the monitor's DDC
 values and check the switch before sleeping; command-center (Win+Space) offers
-the same six.
+the same six. The machine on the receiving end must wake its own screens: a
+locked host with its outputs off sends no picture, and the monitor then keeps
+its USB hub, and so the shared keyboard, away from it. On a dwl host
+`~/bin/display-wake-on-input` (yadm) does that, by watching the input over DDC
+while the outputs are off.
 
 **Drop-in popups.** A script block can have a popup without touching the
 repo: `stanley-popup NAME` also finds `NAME.py` in
