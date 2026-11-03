@@ -2,6 +2,7 @@
 """Popups for stanley's blocks on the dwl bar.
 
     stanley-popup network|bluetooth|audio|power|tmp|agents|cpu|memory|disk|messages|record
+    stanley-popup NAME     # ~/.config/stanley/popups/NAME.py
 
 Running it again with the same name closes the open popup; another name
 replaces it. A popup closes on Esc or a click outside it. With BLOCK_X and
@@ -11,10 +12,17 @@ Drawn with GTK4 and gtk4-layer-shell (apt: gir1.2-gtk4layershell-1.0). The
 window covers the work area below the bar and is transparent apart from the
 card, so a click anywhere else on screen lands on it and closes it. Each popup
 is a module beside this file; common.py has what they share.
+
+A drop-in popup is a file NAME.py in ~/.config/stanley/popups (under
+$XDG_CONFIG_HOME) that defines `class Popup(Panel)`, built like the modules
+here and importing from common. Built-in names win; a drop-in name is
+lower-case letters, digits and dashes.
 """
 
 import ctypes.util
+import importlib.util
 import os
+import re
 import signal
 import sys
 
@@ -50,7 +58,31 @@ from tmp import Tmp  # noqa: E402
 CLASSES = dict(network=Network, bluetooth=Bluetooth, audio=Audio, power=Power, tmp=Tmp, agents=Agents,
                cpu=Cpu, memory=Memory, disk=Disk, messages=Messages, record=Record)
 POPUPS = tuple(CLASSES)
+DROP_INS = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                        "stanley", "popups")
 STATE = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "stanley-popup")
+
+
+# ------------------------------------------------------------- drop-ins
+
+def drop_ins():
+    """The drop-in popup names, built-in ones left out."""
+    try:
+        files = os.listdir(DROP_INS)
+    except OSError:
+        return []
+    return sorted(f[:-3] for f in files
+                  if re.fullmatch(r"[a-z0-9-]+\.py", f) and f[:-3] not in CLASSES)
+
+
+def load(name):
+    """A drop-in popup's class. An error in the file ends the process with
+    its traceback, which lands in the session log."""
+    spec = importlib.util.spec_from_file_location(
+        "stanley_popup_" + name, os.path.join(DROP_INS, name + ".py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.Popup
 
 
 # ------------------------------------------------------------- toggling
@@ -81,9 +113,9 @@ def release():
 
 
 class App(Gtk.Application):
-    def __init__(self, name):
+    def __init__(self, popup):
         super().__init__(application_id=None, flags=Gio.ApplicationFlags.NON_UNIQUE)
-        self.name = name
+        self.popup = popup
 
     def do_activate(self):
         # dwl draws the bar at 96 dpi times the output scale, which GTK applies
@@ -110,7 +142,7 @@ class App(Gtk.Application):
         # window the keyboard once the pointer moves onto it, so Esc works.
         LayerShell.set_keyboard_mode(win, LayerShell.KeyboardMode.ON_DEMAND)
 
-        inner = CLASSES[self.name](self).widget()
+        inner = self.popup(self).widget()
         inner.set_size_request(360, -1)
         card = Tab(inner)
         # Slide down out of the bar rather than appearing in place.
@@ -141,14 +173,16 @@ class App(Gtk.Application):
 
 
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in POPUPS:
-        sys.exit(f"usage: stanley-popup {'|'.join(POPUPS)}")
+    names = POPUPS + tuple(drop_ins())
+    if len(sys.argv) != 2 or sys.argv[1] not in names:
+        sys.exit(f"usage: stanley-popup {'|'.join(names)}")
     if not LIB:
         sys.exit("stanley-popup: install gir1.2-gtk4layershell-1.0")
     name = sys.argv[1]
+    popup = CLASSES[name] if name in CLASSES else load(name)
     if not take_over(name):
         return
-    app = App(name)
+    app = App(popup)
     GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGTERM, lambda: (app.quit(), False)[1])
     try:
         app.run([sys.argv[0]])

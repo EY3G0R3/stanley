@@ -13,7 +13,9 @@
 #           bluetooth wifi battery clock date hostname
 #           script:COMMAND shows the first line COMMAND prints (icon, a tab,
 #           then text; or just text), run every 10 s through sh -c. COMMAND
-#           is one word: put arguments in a wrapper script.
+#           is one word: put arguments in a wrapper script. For its popup,
+#           "click: stanley-popup NAME" opens ~/.config/stanley/popups/NAME.py
+#           (see the README).
 # sections: "section left", "section center" or "section right" puts the
 #           widgets after it there; before any, they are on the right. dwl
 #           centres the center section and puts the left one between the

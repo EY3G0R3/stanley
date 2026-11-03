@@ -139,6 +139,18 @@ drawing, the `Panel` base, the `Tab` outline, `place()`) and one module per
 popup: `network`, `bluetooth`, `audio`, `power`, `tmp`, `agents`, `cpu`,
 `memory`, `disk` (all three on `gauge.py`), `messages`, `record`.
 
+**Drop-in popups.** A script block can have a popup without touching the
+repo: `stanley-popup NAME` also finds `NAME.py` in
+`$XDG_CONFIG_HOME/stanley/popups` (default `~/.config`), beside the bar files,
+so yadm carries them. The file defines `class Popup(Panel)`, built like the
+modules here, and imports from `common`, which is already on `sys.path`.
+Built-in names win, so a stray file cannot break a built-in popup. A drop-in
+name is lower-case letters, digits and dashes, and only names found in the
+folder are accepted, so one cannot reach outside it. The file is loaded
+before anything else happens; an error in it exits with its traceback, which
+lands in the session log. This makes `common.py` an API: renaming `Panel`,
+`row`, `label` or `button` breaks drop-ins.
+
 ## Protocol to dwl
 
 One line per tick on stdout, in three sections, always all three:
@@ -217,46 +229,6 @@ stanley and dwl speak one protocol, so update and rebuild them together.
    `bar##hostname.<host>` file the built-in `bar.example` applies.
 6. Log out and in, so dwl and `dwl-session` (yadm) start fresh.
 
-## Next work
-
-**Drop-in popups.** Not started. Today every popup is built in: a
-`script:` block can run any `click:` command, but a stanley popup for it
-means adding a module under `src/popups/`. With drop-in popups a custom
-widget is two files outside the repo, a status script and a popup, which
-also makes one easy to share.
-
-- *Where.* `stanley-popup NAME` also looks for
-  `$XDG_CONFIG_HOME/stanley/popups/NAME.py` (default `~/.config`), beside the
-  bar files, so yadm carries them.
-- *Precedence.* Built-in names win. A stray file cannot break a built-in
-  popup, and replacing one is a later decision if it is ever wanted.
-- *Names.* `[a-z0-9-]+` only, so a name cannot reach outside the folder.
-- *Contract.* The file defines `class Popup(Panel)`, set up like the built-in
-  ones (`icon`, `title`, `refresh_ms`, `refresh()`, `build_foot()`), and
-  imports what it needs with `from common import ...`, which already works
-  because `src/popups/` is on `sys.path`. It is loaded with
-  `importlib.util.spec_from_file_location` and placed, toggled and closed
-  like any other popup.
-- *Usage.* The usage message lists built-in and drop-in names. A file that
-  fails to import exits with its traceback, so the error lands in the
-  session log.
-- *Bar file.* `script:~/bin/vpn-status  click: stanley-popup vpn`
-
-The cost is that `common.py` becomes an API: renaming `Panel`, `row` or
-`button` breaks drop-ins, so those changes need a note in the README. The
-code is about twenty lines in `stanley-popup`.
-
-Done when:
-
-1. a test file in a scratch config folder opens under its block on a
-   headless dwl, and a second click closes it;
-2. `stanley-popup audio` still opens the built-in popup with an `audio.py` in
-   the folder;
-3. `stanley-popup ../x` and an unknown name both exit with the usage message;
-4. bar.example and the README show the bar-file line and a minimal popup.
-
-Wait until a real `script:` block needs a popup; nothing does yet.
-
 ## Known gaps
 
 - `agent-quota` (yadm, `~/.config/systemd/user`) fails its Codex half on
@@ -278,3 +250,5 @@ Wait until a real `script:` block needs a popup; nothing does yet.
 4. **slstatus retired.** `slstatus-panel` became `src/popups/`,
    `slstatus-action` became block clicks, and protocol 1, dwl's own clock,
    the `slstatus-click` FIFO and the handshake went.
+5. **Widgets outside the repo.** `script:COMMAND` blocks and drop-in popups,
+   so a custom widget is a status script plus a popup file.
