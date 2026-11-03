@@ -1,8 +1,8 @@
 //! Turn readings into the status line: parts, spacing, groups, markers.
 
-use crate::config::{Parts, Settings};
+use crate::config::{Parts, Section, Settings};
 use crate::meter;
-use crate::protocol::{is_blank, Role, BLOCK, INDEX_BASE};
+use crate::protocol::{is_blank, to_v1, Role, BLOCK, CENTER, INDEX_BASE, LEFT, RIGHT};
 use crate::widgets::Reading;
 
 /// One widget's text: its listed parts that have something to show, one space
@@ -50,17 +50,35 @@ pub struct Placed<'a> {
     /// Position in the bar file, 0-based; clicks come back with it.
     pub index: usize,
     pub group: usize,
+    pub section: Section,
     pub text: &'a str,
     pub bare: bool,
 }
 
-/// The status line. Each block carries its marker, then the gap before it,
-/// so a click on the gap counts for the widget to its right, as in slstatus.
-pub fn line(blocks: &[Placed], settings: &Settings) -> String {
+/// The status line in protocol `version`: all three sections for 2, and for
+/// 1 only the right one, since that dwl draws its own clock.
+pub fn line(blocks: &[Placed], settings: &Settings, version: u32) -> String {
+    if version < 2 {
+        return to_v1(&section(blocks, Section::Right, settings));
+    }
+    let mut out = String::new();
+    for (marker, which) in [(LEFT, Section::Left), (CENTER, Section::Center), (RIGHT, Section::Right)] {
+        out.push(marker);
+        out.push_str(&section(blocks, which, settings));
+    }
+    out
+}
+
+/// One section's blocks. Each carries its marker, then the gap before it, so
+/// a click on the gap counts for the widget to its right, as in slstatus.
+/// The first has no gap: dwl places a section by its glyphs, and leading
+/// spaces would pull the center section off centre.
+fn section(blocks: &[Placed], which: Section, settings: &Settings) -> String {
     let mut out = String::new();
     let mut previous: Option<&Placed> = None;
-    for block in blocks.iter().filter(|b| !b.text.is_empty()) {
+    for block in blocks.iter().filter(|b| b.section == which && !b.text.is_empty()) {
         let gap = match previous {
+            None => 0,
             Some(p) if p.group == block.group => {
                 if p.bare && block.bare {
                     settings.icon_gap
@@ -109,13 +127,27 @@ mod tests {
     #[test]
     fn gaps_and_markers() {
         let s = Settings::default();
+        let right = |index, group, text, bare| Placed { index, group, section: Section::Right, text, bare };
         let blocks = [
-            Placed { index: 0, group: 0, text: "a", bare: false },
-            Placed { index: 1, group: 0, text: "", bare: false },
-            Placed { index: 2, group: 0, text: "b", bare: false },
-            Placed { index: 3, group: 1, text: "c", bare: true },
-            Placed { index: 4, group: 1, text: "d", bare: true },
+            right(0, 0, "a", false),
+            right(1, 0, "", false),
+            right(2, 0, "b", false),
+            right(3, 1, "c", true),
+            right(4, 1, "d", true),
         ];
-        assert_eq!(line(&blocks, &s), "\x1f!    a\x1f#  b\x1f$    c\x1f% d");
+        assert_eq!(line(&blocks, &s, 1), "\x1f!a\x1f#  b\x1f$    c\x1f% d");
+    }
+
+    #[test]
+    fn sections_in_order() {
+        let s = Settings::default();
+        let blocks = [
+            Placed { index: 0, group: 0, section: Section::Right, text: "\x02r", bare: false },
+            Placed { index: 1, group: 1, section: Section::Center, text: "c", bare: false },
+            Placed { index: 2, group: 2, section: Section::Left, text: "l", bare: false },
+        ];
+        assert_eq!(line(&blocks, &s, 2), "\x1c\x1f#l\x1d\x1f\"c\x1e\x1f!\x02r");
+        // Protocol 1: the right section alone, in slstatus's role bytes.
+        assert_eq!(line(&blocks, &s, 1), "\x1f!\x04r");
     }
 }

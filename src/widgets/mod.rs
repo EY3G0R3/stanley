@@ -2,9 +2,11 @@
 
 mod audio;
 mod battery;
+mod clock;
 mod cpu;
 mod disk;
 mod fixer;
+mod hostname;
 mod memory;
 mod recording;
 mod top;
@@ -57,6 +59,9 @@ pub mod icon {
     pub const PLUG: &str = "\u{f1e6}";
     pub const BATTERY: &str = "\u{f240}";
     pub const POWER: &str = "\u{f011}";
+    pub const CLOCK: &str = "\u{f017}";
+    pub const CALENDAR: &str = "\u{f073}";
+    pub const HOST: &str = "\u{f109}"; // a laptop
 }
 
 /// An icon whose click opens a popup that shows the live state, so the icon
@@ -75,7 +80,7 @@ impl Widget for Fixed {
 /// The widgets a bar file can name, for error messages.
 pub const NAMES: &[&str] = &[
     "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "record", "agents", "messages",
-    "bluetooth", "wifi", "battery",
+    "bluetooth", "wifi", "battery", "clock", "date", "hostname",
 ];
 
 /// Build every widget the bar file lists, and nothing else. Widgets that share
@@ -101,6 +106,9 @@ impl Factory {
             "record" => Box::new(recording::Recording),
             "messages" => Box::new(fixer::Fixer),
             "battery" => Box::new(battery::Battery),
+            "clock" => Box::new(clock::Clock::time()),
+            "date" => Box::new(clock::Clock::date()),
+            "hostname" => Box::new(hostname::Hostname),
             "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI" }),
             "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT" }),
             "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI" }),

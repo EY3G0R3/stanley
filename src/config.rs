@@ -29,6 +29,15 @@ impl Parts {
     const NONE: Parts = Parts { icon: false, name: false, gauge: false, extra: false };
 }
 
+/// Where on the bar a widget sits. dwl lays the sections out; see
+/// docs/design.md.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Section {
+    Left,
+    Center,
+    Right,
+}
+
 /// One widget line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
@@ -38,6 +47,7 @@ pub struct Entry {
     pub click: Option<String>,
     /// Lines separated by a blank line are in different groups.
     pub group: usize,
+    pub section: Section,
 }
 
 /// `set` lines.
@@ -82,6 +92,8 @@ pub fn parse(text: &str, warn: &mut dyn FnMut(usize, String)) -> Config {
     let mut config = Config::default();
     let mut group = 0;
     let mut group_open = false;
+    // Phase 1 bar files have no section lines, and all of it is the right.
+    let mut section = Section::Right;
 
     for (n, raw) in text.lines().enumerate() {
         let lineno = n + 1;
@@ -119,6 +131,16 @@ pub fn parse(text: &str, warn: &mut dyn FnMut(usize, String)) -> Config {
             continue;
         }
 
+        if first == "section" {
+            match words.next().unwrap_or("") {
+                "left" => section = Section::Left,
+                "center" => section = Section::Center,
+                "right" => section = Section::Right,
+                other => warn(lineno, format!("unknown section {other:?}: use left, center or right")),
+            }
+            continue;
+        }
+
         let (widget, arg) = match first.split_once(':') {
             Some((w, a)) => (w, (!a.is_empty()).then(|| a.to_string())),
             None => (first, None),
@@ -148,6 +170,7 @@ pub fn parse(text: &str, warn: &mut dyn FnMut(usize, String)) -> Config {
             parts: if listed { parts } else { Parts::ALL },
             click,
             group,
+            section,
         });
         group_open = true;
     }
@@ -199,6 +222,13 @@ mod tests {
         assert_eq!(disk.group, cpu.group);
         // Two blank lines still make one group break.
         assert_eq!(c.entries[2].group, cpu.group + 1);
+    }
+
+    #[test]
+    fn sections() {
+        let c = parse_ok("cpu\nsection left\nhostname\nsection center\nclock\nsection right\nbattery\n");
+        let sections: Vec<Section> = c.entries.iter().map(|e| e.section).collect();
+        assert_eq!(sections, [Section::Right, Section::Left, Section::Center, Section::Right]);
     }
 
     #[test]

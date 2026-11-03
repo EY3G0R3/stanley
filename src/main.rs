@@ -130,6 +130,7 @@ fn main() {
     }
     install_signals();
     let mut clicks = if options.once { None } else { click::Clicks::open() };
+    let version = protocol::version();
     let stdout = std::io::stdout();
 
     loop {
@@ -156,9 +157,15 @@ fn main() {
         let placed: Vec<render::Placed> = slots
             .iter()
             .enumerate()
-            .map(|(index, slot)| render::Placed { index, group: slot.entry.group, text: &slot.text, bare: slot.bare })
+            .map(|(index, slot)| render::Placed {
+                index,
+                group: slot.entry.group,
+                section: slot.entry.section,
+                text: &slot.text,
+                bare: slot.bare,
+            })
             .collect();
-        let mut line = render::line(&placed, &settings);
+        let mut line = render::line(&placed, &settings, version);
         line.push('\n');
         let mut out = stdout.lock();
         if out.write_all(line.as_bytes()).and_then(|_| out.flush()).is_err() {
