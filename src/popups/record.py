@@ -223,7 +223,7 @@ class Record(Panel):
         box = vbox(2)
         mode = self.opts.get("mode", "region")
         for key, glyph, name, about in (("region", "\U000f0a87", "Region", "drag, or click"),
-                                        ("window", "\uf2d0", "Window", "the focused one"),
+                                        ("window", "\uf2d0", "Window", "click one"),
                                         ("fullscreen", "\U000f0379", "Screen", "pick one")):
             box.append(row(glyph, name, about, on_click=lambda k=key: self.set("mode", k),
                            current=mode == key))
