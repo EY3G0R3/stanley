@@ -1,4 +1,4 @@
-"""The fix-my-messages agent: on or off, and its latest fixes."""
+"""The fix-my-messages agent: on or off, its latest fixes and misses."""
 
 import os
 import re
@@ -11,13 +11,15 @@ from common import Panel, clear, hbox, label, row, run, run_async, vbox
 
 class Messages(Panel):
     """Paddle's fix-my-messages agent (~/bin/fix-my-messages): on or off,
-    which proofreader it uses, and what it fixed lately."""
+    which proofreader it uses, and what it fixed or missed lately."""
     icon, title, refresh_ms = "\U000f04c6", "Message fixer", 3000
     UNIT = "fix-my-messages"
-    CHECKERS = (("claude", "Haiku · your plan"), ("codex", "your plan"),
+    CHECKERS = (("claude", "Sonnet · your plan"), ("codex", "your plan"),
                 ("paddle", "paid in sparks"))
     STATE = os.path.expanduser("~/.local/state/fix-my-messages")
     FIX = re.compile(r"^(\S+) \S+ \S+: (.*?): (fixed|would fix) (.*)$")
+    # A message that reached the agent too late to check in time.
+    SKIP = re.compile(r"^(\S+) \S+ \S+: (.*?): (skipped), (arrived after \S+)$")
 
     def __init__(self, app):
         super().__init__(app)
@@ -58,13 +60,17 @@ class Messages(Panel):
         fixes = []
         for line in run(["journalctl", "--user", "-u", self.UNIT, "-o", "short-iso",
                          "-n", "1000", "--no-pager"]).splitlines():
-            m = self.FIX.match(line)
+            m = self.FIX.match(line) or self.SKIP.match(line)
             if m:
                 fixes.append(m.groups())
         today = time.strftime("%Y-%m-%d")
         count = sum(1 for when, _w, kind, _c in fixes if kind == "fixed" and when.startswith(today))
+        # Misses: skipped as too slow, or a fix found after the edit window.
+        missed = sum(1 for when, _w, kind, changes in fixes if when.startswith(today)
+                     and (kind == "skipped" or "(too late" in changes))
         self.sub.set_text(("on" if on else "off") + f" · {current}"
-                          + (f" · {count} fixed today" if count else ""))
+                          + (f" · {count} fixed today" if count else "")
+                          + (f" · {missed} missed" if missed else ""))
 
         clear(self.body)
         self.body.append(label("CHECKER", "sect"))
@@ -74,14 +80,15 @@ class Messages(Panel):
                            current=name == current))
         self.body.append(box)
 
-        self.body.append(label("LATEST FIXES", "sect"))
+        self.body.append(label("LATEST FIXES AND MISSES", "sect"))
         if not fixes:
             self.body.append(label("Nothing fixed yet", "sub"))
             return
         box = vbox(6)
         for when, where, kind, changes in reversed(fixes[-6:]):
             head = hbox(label(where, "meta", expand=True, ellipsize=True),
-                        label(when[11:16] + ("" if kind == "fixed" else " · not edited"), "meta"))
+                        label(when[11:16] + {"fixed": "", "skipped": " · skipped"}.get(kind, " · not edited"),
+                              "meta"))
             text = Gtk.Label(label=changes, xalign=0, wrap=True, max_width_chars=48)
             entry = vbox(1)
             entry.append(head)
