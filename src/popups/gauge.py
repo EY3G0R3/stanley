@@ -137,13 +137,17 @@ class Procs:
                 continue
             fields = stat.rsplit(")", 1)[1].split()
             t = int(fields[11]) + int(fields[12])
-            ticks[pid] = t
+            # Keyed by start time too, so a reused pid reads as new. A new
+            # process spent all its time since the last sample.
+            key = (pid, fields[19])
+            ticks[key] = t
             row = out.setdefault(self.name(pid), [0, 0, 0])
-            row[0] += t - self.prev.get(pid, t)
+            row[0] += t - self.prev.get(key, 0)
             row[1] += rss
             row[2] += 1
         self.prev = ticks
-        self.names = {p: n for p, n in self.names.items() if p in ticks}
+        live = {pid for pid, _ in ticks}
+        self.names = {p: n for p, n in self.names.items() if p in live}
         return out
 
 

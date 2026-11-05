@@ -30,6 +30,7 @@ class Cpu(Gauge):
         now = cpu_times()
         use = [(b - pb) / (t - pt) if t > pt else 0 for (b, t), (pb, pt) in zip(now, self.prev)]
         elapsed = now[0][1] - self.prev[0][1]
+        busy = now[0][0] - self.prev[0][0]
         self.prev = now
         procs = self.procs.sample()
 
@@ -44,6 +45,11 @@ class Cpu(Gauge):
                               label(f"busiest {busiest * 100:.0f}%", "meta")))
         self.body.append(self.columns(use[1:]))
 
+        # Processes that exited since the last sample are gone from /proc;
+        # the rest of the machine's busy time is theirs (and the kernel's).
+        exited = busy - sum(t for t, _rss, _n in procs.values())
+        if exited > 0:
+            procs["exited processes"] = (exited, 0, 1)
         # Ticks are per core; elapsed is summed over all of them, so this is
         # each program's share of the whole machine, as the ring is.
         top = sorted(procs.items(), key=lambda kv: -kv[1][0])[:6]
