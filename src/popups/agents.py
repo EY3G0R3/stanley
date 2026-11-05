@@ -22,7 +22,7 @@ class Agents(Panel):
 
     @staticmethod
     def bar(name, frac, color):
-        """A thin bar with a short label, so the used and week bars line up."""
+        """A thin bar with a short label, so the tokens and time bars line up."""
         area = Gtk.DrawingArea(content_height=10, hexpand=True, valign=Gtk.Align.CENTER)
         area.set_draw_func(lambda _a, cr, w, h: draw_bar(cr, w, h, frac, color))
         name = label(name, "sub")
@@ -38,22 +38,30 @@ class Agents(Panel):
             except (OSError, ValueError):
                 continue
             left = reset - time.time()
+            over = False
             if left <= 0:
                 percent, week, when = 0, 0, "reset, waiting for new numbers"
             else:
                 week = min(1, max(0, 1 - left / self.WEEK))
                 d, h, m = int(left // 86400), int(left % 86400 // 3600), int(left % 3600 // 60)
-                gap = percent - round(week * 100)
-                pace = (f"{gap}% ahead of pace" if gap > 0 else
-                        f"{-gap}% under pace" if gap < 0 else "on pace")
+                # Linear forecast at the current rate, once a day has passed.
+                start = reset - self.WEEK
+                if time.time() - start < 86400:
+                    pace = "too early to tell"
+                elif (forecast := percent / week) <= 100:
+                    pace = f"at this rate: {round(forecast)}% by reset"
+                else:
+                    over = True
+                    out = start + self.WEEK * week * 100 / percent
+                    pace = time.strftime("at this rate: out %a %-I:%M %p", time.localtime(out))
                 when = (pace + " · " + time.strftime("resets %a %-I:%M %p", time.localtime(reset))
                         + " · in " + (f"{d}d {h}h" if d else f"{h}h {m}m"))
             frac = percent / 100
-            color = C["bad"] if frac >= .9 else C["warn"] if frac > week else C["ok"]
+            color = C["bad"] if frac >= .9 else C["warn"] if over else C["ok"]
             box = vbox(6)
             box.append(hbox(label(name, "name", expand=True), label(f"{percent}%", "big")))
-            box.append(self.bar("used", frac, color))
-            box.append(self.bar("week", week, C["muted"]))
+            box.append(self.bar("tokens", frac, color))
+            box.append(self.bar("time", week, C["muted"]))
             box.append(label(when, "sub"))
             self.body.append(box)
         if self.body.get_first_child() is None:
