@@ -4,8 +4,8 @@ use super::{icon, popup, Block, Reading};
 use crate::meter::Gauge;
 
 pub struct Cpu {
-    /// user nice system idle iowait irq softirq, from the last reading.
-    last: Option<[u64; 7]>,
+    /// (busy, total) ticks from the last reading.
+    last: Option<(u64, u64)>,
 }
 
 impl Cpu {
@@ -14,14 +14,16 @@ impl Cpu {
     }
 }
 
-fn sample() -> Option<[u64; 7]> {
+/// (busy, total) ticks summed over all cores since boot. Busy is user, nice,
+/// system, irq and softirq; total adds idle and iowait.
+pub(super) fn sample() -> Option<(u64, u64)> {
     let stat = std::fs::read_to_string("/proc/stat").ok()?;
     let mut fields = stat.lines().next()?.split_whitespace().skip(1);
-    let mut out = [0u64; 7];
-    for slot in &mut out {
+    let mut v = [0u64; 7];
+    for slot in &mut v {
         *slot = fields.next()?.parse().ok()?;
     }
-    Some(out)
+    Some((v[0] + v[1] + v[2] + v[5] + v[6], v.iter().sum()))
 }
 
 impl Block for Cpu {
@@ -33,10 +35,9 @@ impl Block for Cpu {
         let now = sample();
         // The first reading has nothing to measure against: icon, no gauge.
         let gauge = match (self.last, now) {
-            (Some(a), Some(b)) => {
-                let delta = |i: usize| b[i].saturating_sub(a[i]);
-                let total: u64 = (0..7).map(delta).sum();
-                let busy = delta(0) + delta(1) + delta(2) + delta(5) + delta(6);
+            (Some((busy0, total0)), Some((busy1, total1))) => {
+                let busy = busy1.saturating_sub(busy0);
+                let total = total1.saturating_sub(total0);
                 (total > 0).then(|| Gauge::new((100 * busy / total) as u32))
             }
             _ => None,

@@ -1,20 +1,26 @@
 //! This user's busiest programs, after the top-processes widget on the
 //! Omarchy bar: `name(N%)` joined by commas, re-ranked every few seconds.
 //!
-//! N is a share of the whole machine, as in the CPU popup. The colors go by
+//! N is a share of the whole machine, as in the CPU gauge. The colors go by
 //! cores instead, as in top: a program past half a core turns yellow whatever
 //! the core count. Time is measured over the whole window since the last
 //! reading, which steadies a ranking redrawn only every few seconds.
 //!
 //! Processes of one name count as one program, shown `name×K(N%)`: eleven
 //! fancylog processes at 1% each are one 11% fancylog, not eleven ties.
+//!
+//! Processes that started and exited inside the window are gone from /proc
+//! before they can be read. The machine's busy time no live process accounts
+//! for is theirs, so it ranks as one more entry, `exited(N%)`: a test suite
+//! forking thousands of short processes would otherwise leave the gauge at
+//! 99% and this list near 25%.
 
-use super::{dim, popup, Block, Reading};
+use super::{cpu, dim, popup, Block, Reading};
 use crate::protocol::{clean, paint, Role};
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 const COUNT: usize = 3;
 const EVERY: Duration = Duration::from_secs(5);
@@ -25,8 +31,8 @@ const CRIT_AT: u32 = 80;
 pub struct Top {
     /// pid -> (start time, CPU ticks) at the last reading.
     last: HashMap<u32, (u64, u64)>,
-    taken: Option<Instant>,
-    hz: f64,
+    /// Machine (busy, total) ticks at the last reading.
+    machine: Option<(u64, u64)>,
     cores: f64,
     uid: u32,
 }
@@ -35,8 +41,7 @@ impl Top {
     pub fn new() -> Top {
         Top {
             last: HashMap::new(),
-            taken: None,
-            hz: (unsafe { libc::sysconf(libc::_SC_CLK_TCK) }).max(1) as f64,
+            machine: None,
             cores: (unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) }).max(1) as f64,
             uid: unsafe { libc::geteuid() },
         }
@@ -79,7 +84,7 @@ impl Block for Top {
     }
 
     fn read(&mut self) -> Reading {
-        let now = Instant::now();
+        let machine = cpu::sample();
         let mut current = HashMap::new();
         // name -> (ticks in the window, processes)
         let mut programs: HashMap<String, (u64, u32)> = HashMap::new();
@@ -109,21 +114,24 @@ impl Block for Top {
                 program.1 += 1;
             }
         }
-        let elapsed = self.taken.map(|t| now.duration_since(t).as_secs_f64());
+        let window = match (self.machine, machine) {
+            (Some((b0, t0)), Some((b1, t1))) => Some((b1.saturating_sub(b0), t1.saturating_sub(t0))),
+            _ => None,
+        };
         self.last = current;
-        self.taken = Some(now);
+        self.machine = machine;
 
         // The first reading has nothing to measure against.
-        let Some(elapsed) = elapsed.filter(|&e| e > 0.0) else {
+        let Some((busy, total)) = window.filter(|&(_, t)| t > 0) else {
             return Reading { extra: Some(dim("sampling…")), ..Reading::default() };
         };
 
-        let mut ranked: Vec<(String, u64, u32)> = programs.into_iter().map(|(n, (t, c))| (n, t, c)).collect();
-        ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let ranked = rank(programs, busy);
         let mut out = String::new();
         for (i, (comm, ticks, count)) in ranked.iter().take(COUNT).enumerate() {
-            let of_core = (*ticks as f64 * 100.0 / (self.hz * elapsed) + 0.5) as u32;
-            let share = *ticks as f64 * 100.0 / (self.hz * elapsed * self.cores);
+            // Ticks and total are both summed over all cores.
+            let share = *ticks as f64 * 100.0 / total as f64;
+            let of_core = (share * self.cores + 0.5) as u32;
             let role = if of_core > CRIT_AT {
                 Role::Crit
             } else if of_core > WARN_AT {
@@ -139,5 +147,38 @@ impl Block for Top {
             out.push_str(&paint(role, &label));
         }
         Reading { extra: (!out.is_empty()).then_some(out), ..Reading::default() }
+    }
+}
+
+/// Programs as (name, ticks, processes), busiest first, with the machine's
+/// busy ticks no live process accounts for added as `exited`.
+fn rank(programs: HashMap<String, (u64, u32)>, busy: u64) -> Vec<(String, u64, u32)> {
+    let seen: u64 = programs.values().map(|&(t, _)| t).sum();
+    let mut ranked: Vec<(String, u64, u32)> = programs.into_iter().map(|(n, (t, c))| (n, t, c)).collect();
+    let exited = busy.saturating_sub(seen);
+    if exited > 0 {
+        ranked.push(("exited".into(), exited, 1));
+    }
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    ranked
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unaccounted_busy_time_ranks_as_exited() {
+        let programs = HashMap::from([("kitty".to_string(), (30, 1)), ("bun".to_string(), (10, 4))]);
+        let ranked = rank(programs, 100);
+        assert_eq!(ranked[0], ("exited".to_string(), 60, 1));
+        assert_eq!(ranked[1].0, "kitty");
+        assert_eq!(ranked[2].0, "bun");
+    }
+
+    #[test]
+    fn no_exited_entry_when_live_processes_cover_busy_time() {
+        let programs = HashMap::from([("kitty".to_string(), (30, 1))]);
+        assert_eq!(rank(programs, 25), vec![("kitty".to_string(), 30, 1)]);
     }
 }
