@@ -14,9 +14,20 @@ class Agents(Panel):
     AGENTS = (("claude", "Claude Code"), ("codex", "Codex"))
     DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "agent-quota")
 
+    WEEK = 7 * 86400
+
     def __init__(self, app):
         super().__init__(app)
         self.fetched = False
+
+    @staticmethod
+    def bar(name, frac, color):
+        """A thin bar with a short label, so the used and week bars line up."""
+        area = Gtk.DrawingArea(content_height=10, hexpand=True, valign=Gtk.Align.CENTER)
+        area.set_draw_func(lambda _a, cr, w, h: draw_bar(cr, w, h, frac, color))
+        name = label(name, "sub")
+        name.set_size_request(40, -1)
+        return hbox(name, area)
 
     def refresh(self):
         clear(self.body)
@@ -28,18 +39,21 @@ class Agents(Panel):
                 continue
             left = reset - time.time()
             if left <= 0:
-                percent, when = 0, "reset, waiting for new numbers"
+                percent, week, when = 0, 0, "reset, waiting for new numbers"
             else:
+                week = min(1, max(0, 1 - left / self.WEEK))
                 d, h, m = int(left // 86400), int(left % 86400 // 3600), int(left % 3600 // 60)
-                when = (time.strftime("resets %a %-I:%M %p", time.localtime(reset))
+                gap = percent - round(week * 100)
+                pace = (f"{gap}% ahead of pace" if gap > 0 else
+                        f"{-gap}% under pace" if gap < 0 else "on pace")
+                when = (pace + " · " + time.strftime("resets %a %-I:%M %p", time.localtime(reset))
                         + " · in " + (f"{d}d {h}h" if d else f"{h}h {m}m"))
             frac = percent / 100
-            color = C["bad"] if frac >= .9 else C["warn"] if frac >= .75 else C["ok"]
-            bar = Gtk.DrawingArea(content_height=10, hexpand=True)
-            bar.set_draw_func(lambda _a, cr, w, h, f=frac, c=color: draw_bar(cr, w, h, f, c))
+            color = C["bad"] if frac >= .9 else C["warn"] if frac > week else C["ok"]
             box = vbox(6)
             box.append(hbox(label(name, "name", expand=True), label(f"{percent}%", "big")))
-            box.append(bar)
+            box.append(self.bar("used", frac, color))
+            box.append(self.bar("week", week, C["muted"]))
             box.append(label(when, "sub"))
             self.body.append(box)
         if self.body.get_first_child() is None:
