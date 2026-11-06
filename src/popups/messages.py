@@ -38,6 +38,22 @@ class Messages(Panel):
         except OSError:
             return "claude"
 
+    def watching(self):
+        """Whether the service still holds the agent and its message stream:
+        the wrapper can outlive them, and then nothing gets checked."""
+        group = run(["systemctl", "--user", "show", "-p", "ControlGroup", "--value", self.UNIT]).strip()
+        cmds = []
+        try:
+            for pid in open(f"/sys/fs/cgroup{group}/cgroup.procs").read().split():
+                try:
+                    cmds.append(open(f"/proc/{pid}/cmdline", "rb").read().replace(b"\0", b" ").decode())
+                except OSError:
+                    pass
+        except OSError:
+            return False
+        return (any("fix-my-messages.ts" in c for c in cmds)
+                and any("messages list --follow" in c for c in cmds))
+
     def set_on(self, _sw, on):
         run_async(["systemctl", "--user", "enable" if on else "disable", "--now", self.UNIT],
                   lambda *_: self.refresh())
@@ -68,7 +84,8 @@ class Messages(Panel):
         # Misses: skipped as too slow, or a fix found after the edit window.
         missed = sum(1 for when, _w, kind, changes in fixes if when.startswith(today)
                      and (kind == "skipped" or "(too late" in changes))
-        self.sub.set_text(("on" if on else "off") + f" · {current}"
+        state = ("on" if self.watching() else "on · not watching") if on else "off"
+        self.sub.set_text(state + f" · {current}"
                           + (f" · {count} fixed today" if count else "")
                           + (f" · {missed} missed" if missed else ""))
 
