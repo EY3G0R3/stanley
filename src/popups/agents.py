@@ -26,7 +26,8 @@ class Agents(Panel):
         area = Gtk.DrawingArea(content_height=10, hexpand=True, valign=Gtk.Align.CENTER)
         area.set_draw_func(lambda _a, cr, w, h: draw_bar(cr, w, h, frac, color))
         name = label(name, "sub")
-        name.set_size_request(40, -1)
+        # Wide enough for the longest label, so both bars start and end together.
+        name.set_width_chars(len("tokens"))
         return hbox(name, area)
 
     def refresh(self):
