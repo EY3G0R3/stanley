@@ -8,12 +8,6 @@
 //!
 //! Processes of one name count as one program, shown `name×K(N%)`: eleven
 //! fancylog processes at 1% each are one 11% fancylog, not eleven ties.
-//!
-//! Processes that started and exited inside the window are gone from /proc
-//! before they can be read. The machine's busy time no live process accounts
-//! for is theirs, so it ranks as one more entry, `exited(N%)`: a test suite
-//! forking thousands of short processes would otherwise leave the gauge at
-//! 99% and this list near 25%.
 
 use super::{cpu, dim, popup, Block, Reading};
 use crate::protocol::{clean, paint, Role};
@@ -31,8 +25,8 @@ const CRIT_AT: u32 = 80;
 pub struct Top {
     /// pid -> (start time, CPU ticks) at the last reading.
     last: HashMap<u32, (u64, u64)>,
-    /// Machine (busy, total) ticks at the last reading.
-    machine: Option<(u64, u64)>,
+    /// Machine ticks, summed over all cores, at the last reading.
+    machine: Option<u64>,
     cores: f64,
     uid: u32,
 }
@@ -84,7 +78,7 @@ impl Block for Top {
     }
 
     fn read(&mut self) -> Reading {
-        let machine = cpu::sample();
+        let machine = cpu::sample().map(|(_busy, total)| total);
         let mut current = HashMap::new();
         // name -> (ticks in the window, processes)
         let mut programs: HashMap<String, (u64, u32)> = HashMap::new();
@@ -115,18 +109,19 @@ impl Block for Top {
             }
         }
         let window = match (self.machine, machine) {
-            (Some((b0, t0)), Some((b1, t1))) => Some((b1.saturating_sub(b0), t1.saturating_sub(t0))),
+            (Some(t0), Some(t1)) => Some(t1.saturating_sub(t0)),
             _ => None,
         };
         self.last = current;
         self.machine = machine;
 
         // The first reading has nothing to measure against.
-        let Some((busy, total)) = window.filter(|&(_, t)| t > 0) else {
+        let Some(total) = window.filter(|&t| t > 0) else {
             return Reading { extra: Some(dim("sampling…")), ..Reading::default() };
         };
 
-        let ranked = rank(programs, busy);
+        let mut ranked: Vec<(String, u64, u32)> = programs.into_iter().map(|(n, (t, c))| (n, t, c)).collect();
+        ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         let mut out = String::new();
         for (i, (comm, ticks, count)) in ranked.iter().take(COUNT).enumerate() {
             // Ticks and total are both summed over all cores.
@@ -147,38 +142,5 @@ impl Block for Top {
             out.push_str(&paint(role, &label));
         }
         Reading { extra: (!out.is_empty()).then_some(out), ..Reading::default() }
-    }
-}
-
-/// Programs as (name, ticks, processes), busiest first, with the machine's
-/// busy ticks no live process accounts for added as `exited`.
-fn rank(programs: HashMap<String, (u64, u32)>, busy: u64) -> Vec<(String, u64, u32)> {
-    let seen: u64 = programs.values().map(|&(t, _)| t).sum();
-    let mut ranked: Vec<(String, u64, u32)> = programs.into_iter().map(|(n, (t, c))| (n, t, c)).collect();
-    let exited = busy.saturating_sub(seen);
-    if exited > 0 {
-        ranked.push(("exited".into(), exited, 1));
-    }
-    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-    ranked
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn unaccounted_busy_time_ranks_as_exited() {
-        let programs = HashMap::from([("kitty".to_string(), (30, 1)), ("bun".to_string(), (10, 4))]);
-        let ranked = rank(programs, 100);
-        assert_eq!(ranked[0], ("exited".to_string(), 60, 1));
-        assert_eq!(ranked[1].0, "kitty");
-        assert_eq!(ranked[2].0, "bun");
-    }
-
-    #[test]
-    fn no_exited_entry_when_live_processes_cover_busy_time() {
-        let programs = HashMap::from([("kitty".to_string(), (30, 1))]);
-        assert_eq!(rank(programs, 25), vec![("kitty".to_string(), 30, 1)]);
     }
 }
