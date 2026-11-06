@@ -14,8 +14,8 @@ class Messages(Panel):
     which proofreader it uses, and what it fixed or missed lately."""
     icon, title, refresh_ms = "\U000f04c6", "Message fixer", 3000
     UNIT = "fix-my-messages"
-    CHECKERS = (("claude", "Sonnet · your plan"), ("codex", "your plan"),
-                ("paddle", "paid in sparks"))
+    CHECKERS = (("claude", "Sonnet · your plan"), ("codex", "Codex default · your plan"),
+                ("luna", "Codex gpt-6-luna · your plan"), ("paddle", "paid in sparks"))
     STATE = os.path.expanduser("~/.local/state/fix-my-messages")
     FIX = re.compile(r"^(\S+) \S+ \S+: (.*?): (fixed|would fix) (.*)$")
     # A message that reached the agent too late to check in time.
