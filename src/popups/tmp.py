@@ -150,15 +150,14 @@ class Tmp(Panel):
             box = vbox(4)
             for a in self.agents:
                 state = self.asked.get(a["session"])
-                right = hbox(label(human(a["size"]), "meta"), spacing=6)
                 if state:
-                    right.prepend(pill(state, "ok" if state == "Asked" else "warn"))
-                box.append(row(None, a["name"], right))
-            # One button for all rows: a button per row crowds the list.
-            unasked = [a for a in self.agents if a["session"] not in self.asked]
-            if unasked:
-                box.append(button(f"Ask {len(unasked)} to clean",
-                                  lambda: [self.ask(a) for a in unasked]))
+                    action = pill(state, "ok" if state == "Asked" else "warn")
+                else:
+                    # An icon keeps the row to one line; the tooltip says what it does.
+                    action = button("\U000f00e2", lambda a=a: self.ask(a), css="ic")
+                    action.set_tooltip_text("Ask this agent to clean its temp files")
+                action.set_valign(Gtk.Align.CENTER)
+                box.append(row(None, a["name"], hbox(label(human(a["size"]), "meta"), action, spacing=6)))
             self.body.append(box)
 
         stale = (r.get("staleCleanup") or {}).get("size", 0)
