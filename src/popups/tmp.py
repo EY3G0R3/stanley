@@ -2,13 +2,25 @@
 
 import json
 import os
+import re
 
 from gi.repository import Gtk
 
 from common import (
-    C, Panel, clear, confirm, draw_dot, draw_ring, hbox, human, label, launch, pill, rgb,
+    C, Panel, button, clear, confirm, draw_dot, draw_ring, hbox, human, label, launch, pill, rgb,
     rounded, row, run_async, vbox,
 )
+
+
+def task_name(folder):
+    """The task a Claude temp folder belongs to: the worktree name when the
+    session runs in one, else its working directory."""
+    if "worktrees-" in folder:
+        return folder.split("worktrees-", 1)[1]
+    home = os.path.expanduser("~").replace("/", "-")
+    if folder.startswith(home):
+        return "~" + folder[len(home):].replace("-", "/")
+    return folder.replace("-", "/")
 
 
 class Tmp(Panel):
@@ -16,9 +28,20 @@ class Tmp(Panel):
     COLORS = {"in use": C["cyan"], "stale": C["warn"], "recent": C["accent"],
               "keep": C["ok"], "marked": C["pink"]}
 
+    # Claude Code keeps each session's temp files in CLAUDE_DIR/<cwd>/<session id>,
+    # where <cwd> is the session's working directory with "/" turned into "-".
+    CLAUDE_DIR = f"/tmp/claude-{os.getuid()}"
+    AGENT_MIN = 100 << 20
+    ASK = ("From the user, via the stanley /tmp popup: /tmp is short of space. "
+           "Your temp folder {path} holds {size}. Delete the build copies and scratch "
+           "files you no longer need, keep only what your current work uses, and reuse "
+           "one build folder from now on. No reply needed.")
+
     def __init__(self, app):
         super().__init__(app)
         self.report = None
+        self.agents = []
+        self.asked = {}
         self.clean_btn = None
 
     def build_foot(self):
@@ -35,6 +58,36 @@ class Tmp(Panel):
             clear(self.body)
             self.body.append(label("Scanning /tmp…", "sub"))
         run_async(["tmp-usage", "--json", "--limit", "5"], self.loaded)
+        run_async(["du", "-xb", "-d", "2", self.CLAUDE_DIR], self.agents_loaded)
+
+    def agents_loaded(self, _ok, out):
+        """One entry per Claude session folder, largest first. du also reports
+        unreadable paths, which carry no tab and are skipped."""
+        agents = []
+        for line in out.splitlines():
+            size, _, path = line.partition("\t")
+            rel = os.path.relpath(path, self.CLAUDE_DIR) if path else ""
+            parts = rel.split(os.sep)
+            if len(parts) == 2 and size.isdigit() and int(size) >= self.AGENT_MIN \
+                    and re.fullmatch(r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}", parts[1]):
+                agents.append(dict(name=task_name(parts[0]), session=parts[1],
+                                   path=path, size=int(size)))
+        self.agents = sorted(agents, key=lambda a: -a["size"])[:5]
+        if self.report is not None:
+            self.draw()
+
+    def ask(self, agent):
+        session = agent["session"]
+        self.asked[session] = "Asking…"
+        self.draw()
+        text = self.ASK.format(path=agent["path"], size=human(agent["size"]))
+
+        def done(ok, out):
+            self.asked[session] = "Asked" if '"accepted"' in out or '"injected"' in out \
+                else "Not running" if '"undelivered"' in out else "Failed"
+            self.draw()
+        run_async(["agent-msg", "send", "claude:" + session, "--kind", "request",
+                   "--message", text], done)
 
     def loaded(self, ok, out):
         try:
@@ -90,6 +143,17 @@ class Tmp(Panel):
                 name = e["name"] + ("/" if e.get("isDir") else "")
                 box.append(row(None, name, hbox(pill(e.get("status", ""), kind), label(human(e["size"]), "meta"), spacing=6),
                                on_click=lambda n=e["name"]: (launch(["xdg-open", os.path.join("/tmp", n)]), self.app.quit())))
+            self.body.append(box)
+
+        if self.agents:
+            self.body.append(label("AGENTS", "sect"))
+            box = vbox(4)
+            for a in self.agents:
+                state = self.asked.get(a["session"])
+                right = hbox(label(human(a["size"]), "meta"),
+                             pill(state, "ok" if state == "Asked" else "warn") if state
+                             else button("Ask to clean", lambda a=a: self.ask(a)), spacing=6)
+                box.append(row(None, a["name"], right))
             self.body.append(box)
 
         stale = (r.get("staleCleanup") or {}).get("size", 0)
