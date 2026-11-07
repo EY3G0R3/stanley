@@ -12,6 +12,17 @@ INPUTS = (("\U000f0841", "HDMI", "hdmi"),
           ("\U000f0379", "DisplayPort", "displayport"))
 SWITCH = os.path.expanduser("~/bin/switch-display-to-")
 SLEEP = os.path.expanduser("~/bin/switch-display-and-sleep")
+# Inputs with nothing plugged in, one name per line; DDC cannot tell.
+UNPLUGGED = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                         "stanley", "kvm-unplugged")
+
+
+def unplugged():
+    try:
+        with open(UNPLUGGED) as f:
+            return {line.strip() for line in f if line.strip()}
+    except OSError:
+        return set()
 
 
 class Kvm(Panel):
@@ -19,6 +30,7 @@ class Kvm(Panel):
 
     def refresh(self):
         self.sub.set_text("Send the monitor to another input")
+        self.unplugged = unplugged()
         self.section("SWITCH", lambda arg: [SWITCH + arg])
         self.section("SUSPEND AND SWITCH", lambda arg: [SLEEP, arg])
 
@@ -31,6 +43,7 @@ class Kvm(Panel):
             inner.append(label(name, "name", xalign=0.5))
             b = Gtk.Button(child=inner)
             b.add_css_class("tile")
+            b.set_sensitive(arg not in self.unplugged)
             b.connect("clicked", lambda *_, cmd=argv(arg): (self.app.quit(), launch(cmd)))
             grid.attach(b, i, 0, 1, 1)
         self.body.append(grid)

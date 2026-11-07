@@ -72,6 +72,7 @@ button.tile {
 }
 .tile .glyph { font-size: 1.4em; }
 .tile .name { color: %(muted)s; font-size: 0.86em; }
+button.tile:disabled { opacity: .35; }
 button.tile.danger:hover { border-color: %(bad)s; }
 button.armed { background: alpha(%(bad)s, .16); border-color: %(bad)s; }
 button.armed label { color: %(bad)s; }
