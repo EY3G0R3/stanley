@@ -150,16 +150,15 @@ class Tmp(Panel):
             box = vbox(4)
             for a in self.agents:
                 state = self.asked.get(a["session"])
-                # The name gets a line of its own: beside the size and the
-                # button it was cut to a few characters.
-                action = pill(state, "ok" if state == "Asked" else "warn") if state \
-                    else button("Ask to clean", lambda a=a: self.ask(a))
-                action.set_valign(Gtk.Align.CENTER)
-                entry = vbox(2)
-                entry.add_css_class("row")
-                entry.append(label(a["name"], expand=True, ellipsize=True))
-                entry.append(hbox(label(human(a["size"]), "meta", expand=True), action))
-                box.append(entry)
+                right = hbox(label(human(a["size"]), "meta"), spacing=6)
+                if state:
+                    right.prepend(pill(state, "ok" if state == "Asked" else "warn"))
+                box.append(row(None, a["name"], right))
+            # One button for all rows: a button per row crowds the list.
+            unasked = [a for a in self.agents if a["session"] not in self.asked]
+            if unasked:
+                box.append(button(f"Ask {len(unasked)} to clean",
+                                  lambda: [self.ask(a) for a in unasked]))
             self.body.append(box)
 
         stale = (r.get("staleCleanup") or {}).get("size", 0)
