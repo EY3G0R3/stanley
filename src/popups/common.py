@@ -74,6 +74,8 @@ button.tile {
 .tile .name { color: %(muted)s; font-size: 0.86em; }
 button.tile:disabled { opacity: .35; }
 button.tile.danger:hover { border-color: %(bad)s; }
+button.tile.cur { background: alpha(%(accent)s, .14); border-color: alpha(%(accent)s, .35); }
+button.tile.cur .name { color: %(accent)s; }
 button.armed { background: alpha(%(bad)s, .16); border-color: %(bad)s; }
 button.armed label { color: %(bad)s; }
 entry { background: %(surface)s; border: 1px solid %(line)s; border-radius: 10px; padding: 4px 8px; }

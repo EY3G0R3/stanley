@@ -147,9 +147,13 @@ suspend this machine and switch. It runs `~/bin/switch-display-to-INPUT` and
 values and check the switch before sleeping; command-center (Win+Space) offers
 the same six. Inputs listed in `$XDG_CONFIG_HOME/stanley/kvm-unplugged` (one
 of `hdmi`, `usbc`, `displayport` per line) are grayed out: DDC cannot see a
-cable on an input the monitor is not showing. The machine on the receiving end must wake its own screens: a
-locked host with its outputs off sends no picture, and the monitor then keeps
-its USB hub, and so the shared keyboard, away from it. On a dwl host
+cable on an input the monitor is not showing. The popup reads the monitor's
+current input over DDC (`ddcutil getvcp 60`, about a second, so it lands
+after the tiles) and highlights that tile under SWITCH; the values to match
+come from the `0x..` in each `switch-display-to-INPUT` script. The machine on
+the receiving end must wake its own screens: a locked host with its outputs
+off sends no picture, and the monitor then keeps its USB hub, and so the
+shared keyboard, away from it. On a dwl host
 `~/bin/display-wake-on-input` (yadm) does that, by watching the input over DDC
 while the outputs are off.
 
