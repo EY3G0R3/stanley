@@ -154,7 +154,9 @@ class Tmp(Panel):
                     action = pill(state, "ok" if state == "Asked" else "warn")
                 else:
                     # An icon keeps the row to one line; the tooltip says what it does.
-                    action = button("\U000f00e2", lambda a=a: self.ask(a), css="ic")
+                    # The footer's bordered style, so it reads as a button; the
+                    # flat "ic" square looked like a decoration.
+                    action = button("\U000f00e2", lambda a=a: self.ask(a))
                     action.set_tooltip_text("Ask this agent to clean its temp files")
                 action.set_valign(Gtk.Align.CENTER)
                 box.append(row(None, a["name"], hbox(label(human(a["size"]), "meta"), action, spacing=6)))
