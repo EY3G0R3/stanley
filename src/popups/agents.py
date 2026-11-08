@@ -2,10 +2,11 @@
 
 import os
 import time
+from datetime import datetime
 
 from gi.repository import Gtk
 
-from common import C, Panel, clear, draw_bar, hbox, label, run_async, vbox
+from common import C, Panel, button, clear, draw_bar, hbox, label, launch, run_async, vbox
 
 
 class Agents(Panel):
@@ -16,9 +17,44 @@ class Agents(Panel):
 
     WEEK = 7 * 86400
 
+    COMMON = (
+        "From the user, via the stanley Agents popup: where did my {name} tokens go? "
+        "Look at usage since {since}, the start of the current weekly quota window "
+        "(now at {percent}%). {data} Break it down per Dwight task (dwight task list, "
+        "then dwight task usage -t ID --since ...) and per session, including "
+        "sessions that belong to no task. Show the top consumers in a short ranked "
+        "table with tokens, share of the total, model, and what the work was. Then "
+        "point out what drove the cost and give concrete tips to spend less. "
+        "Read only; change nothing.")
+    DATA = {
+        "claude": "Claude Code transcripts are ~/.claude/projects/<cwd>/<session>.jsonl; "
+                  "each assistant message carries usage (input, output, cache_read and "
+                  "cache_creation input tokens) and the model. Count subagent sidechains "
+                  "too, and watch for cache misses, long contexts, subagent fan-out, big "
+                  "tool outputs, and Opus where a smaller model would do.",
+        "codex": "Codex rollouts are ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl; "
+                 "token_count events carry cumulative total_token_usage (input, "
+                 "cached_input, output, reasoning_output), so take the last one per "
+                 "session. Watch for low cache hit rates, heavy reasoning effort, long "
+                 "contexts, and review or retry loops.",
+    }
+
     def __init__(self, app):
         super().__init__(app)
         self.fetched = False
+
+    def investigate(self, agent, name, percent, reset):
+        """Open a tab with a fresh agent of the same kind, asked where its tokens went."""
+        start = reset - self.WEEK if reset > time.time() else time.time() - self.WEEK
+        since = datetime.fromtimestamp(start).astimezone().isoformat(timespec="seconds")
+        prompt = self.COMMON.format(name=name, since=since, percent=percent, data=self.DATA[agent])
+        # Without a socket, Dwight opens the tab in the main Sprinkles window
+        # (unix:@dwight-main), starting it if needed. Drop any inherited kitty
+        # target so the tab cannot land elsewhere.
+        launch(["env", "-u", "KITTY_LISTEN_ON", "-u", "KITTY_WINDOW_ID",
+                "dwight", "project", "open", os.path.expanduser("~"), "--new",
+                "--agent", agent, "--prompt", prompt])
+        self.app.quit()
 
     @staticmethod
     def bar(name, frac, color):
@@ -60,7 +96,11 @@ class Agents(Panel):
             frac = percent / 100
             color = C["bad"] if frac >= .9 else C["warn"] if over else C["ok"]
             box = vbox(6)
-            box.append(hbox(label(name, "name", expand=True), label(f"{percent}%", "big")))
+            # A small magnifier: a text button drew more attention than the number.
+            investigate = button("\U000f0349", lambda a=agent, n=name, p=percent, r=reset:
+                                 self.investigate(a, n, p, r), css="ic")
+            investigate.set_valign(Gtk.Align.CENTER)
+            box.append(hbox(label(name, "name", expand=True), investigate, label(f"{percent}%", "big")))
             box.append(self.bar("tokens", frac, color))
             box.append(self.bar("time", week, C["muted"]))
             box.append(label(when, "sub"))
