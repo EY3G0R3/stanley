@@ -125,7 +125,7 @@ can be shared as a script without touching Rust. The command runs through
 collected on a later one, so a slow script never holds up the bar; one still
 running after 10 s is killed and the last reading stays. The first line of
 output is the block: the part before a tab is the icon, the rest the extra
-text. No output takes the block off the bar. COMMAND is one word, since the
+text, drawn grey so it reads as part of the icon. No output takes the block off the bar. COMMAND is one word, since the
 bar file splits on spaces.
 
 ## Popups

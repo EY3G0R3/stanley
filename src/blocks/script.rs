@@ -7,10 +7,11 @@
 //!
 //! The first line of output is the block. With a tab in it, the part before
 //! the tab is the icon and the rest the extra text; without one, all of it is
-//! the extra text. No output takes the block off the bar.
+//! the extra text, drawn grey as secondary text. No output takes the block off
+//! the bar.
 
 use super::{Block, Reading};
-use crate::protocol::clean;
+use crate::protocol::{clean, paint, Role};
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -38,7 +39,7 @@ fn reading(output: &str) -> Reading {
         None => ("", line),
     };
     let part = |s: &str| (!s.trim().is_empty()).then(|| clean(s.trim()));
-    Reading { icon: part(icon), extra: part(extra), ..Reading::default() }
+    Reading { icon: part(icon), extra: part(extra).map(|e| paint(Role::Muted, &e)), ..Reading::default() }
 }
 
 impl Block for Script {
@@ -98,10 +99,12 @@ mod tests {
 
     #[test]
     fn output_to_parts() {
-        assert_eq!(reading("I\tvpn up\nignored\n"), Reading { icon: Some("I".into()), extra: Some("vpn up".into()), ..Reading::default() });
-        assert_eq!(reading("just text\n"), Reading { extra: Some("just text".into()), ..Reading::default() });
+        let grey = |s: &str| Some(paint(Role::Muted, s));
+        assert_eq!(reading("I\tvpn up\nignored\n"), Reading { icon: Some("I".into()), extra: grey("vpn up"), ..Reading::default() });
+        assert_eq!(reading("just text\n"), Reading { extra: grey("just text"), ..Reading::default() });
+        assert_eq!(reading("I\t\n"), Reading { icon: Some("I".into()), ..Reading::default() });
         assert_eq!(reading(""), Reading::default());
-        assert_eq!(reading("a\x1fb"), Reading { extra: Some("a?b".into()), ..Reading::default() });
+        assert_eq!(reading("a\x1fb"), Reading { extra: grey("a?b"), ..Reading::default() });
     }
 
     #[test]
@@ -114,6 +117,6 @@ mod tests {
         while s.read().extra.is_none() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(20));
         }
-        assert_eq!(s.read().extra.as_deref(), Some("ok"));
+        assert_eq!(s.read().extra, Some(paint(Role::Muted, "ok")));
     }
 }

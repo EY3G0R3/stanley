@@ -31,7 +31,8 @@ A widget that is not listed is never created, so it costs nothing.
 ## Your own widgets
 
 A widget of your own is a script and, if it wants one, a popup; neither
-touches this repo. The script prints one line, an icon, a tab and the text:
+touches this repo. The script prints one line, an icon, a tab and the text,
+which the bar draws grey:
 
 ```
 script:~/bin/vpn-status   icon extra   click: stanley-popup vpn
