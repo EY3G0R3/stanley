@@ -9,13 +9,16 @@
 # parts:    icon name gauge extra (none listed: every part the widget has)
 # click:    each widget has its own (a popup, the volume, ...); a click:
 #           command replaces it, run with BLOCK_BUTTON, BLOCK_X, BLOCK_WIDTH
-# widgets:  top cpu memory disk tmp audio mic record agents messages
+# widgets:  top cpu memory disk tmp audio mic keyboard record agents messages
 #           bluetooth wifi battery kvm clock date hostname
 #           script:COMMAND shows the first line COMMAND prints (icon, a tab,
 #           then text; or just text), run every 10 s through sh -c. COMMAND
 #           is one word: put arguments in a wrapper script. For its popup,
 #           "click: stanley-popup NAME" opens ~/.config/stanley/popups/NAME.py
 #           (see the README).
+#           keyboard shows dwl's active layout (US, RU) from
+#           $XDG_RUNTIME_DIR/dwl-kblayout, hidden while there is none;
+#           a click switches to the next layout (dwlc nextkblayout).
 # sections: "section left", "section center" or "section right" puts the
 #           widgets after it there; before any, they are on the right. dwl
 #           centres the center section and puts the left one between the
@@ -45,6 +48,7 @@ disk:/     icon gauge
 
 audio      icon gauge
 mic        icon name
+keyboard   icon extra
 
 record     icon
 agents     icon

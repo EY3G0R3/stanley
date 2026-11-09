@@ -113,6 +113,7 @@ read, so a volume change shows at once. Buttons count as in X11: 1 left,
 | kvm | `kvm` popup | |
 | audio, mic | `audio` popup | middle: mute; wheel: volume ±2 %, up to 100 % |
 | top | the btop scratchpad (`wtype` Super+Escape) | right: `cpu` popup |
+| keyboard | next layout (`dwlc nextkblayout`) | |
 | record | stop a recording if one runs, else the `record` popup | |
 | clock, date | calendar (`yad`) | |
 | hostname | none | |

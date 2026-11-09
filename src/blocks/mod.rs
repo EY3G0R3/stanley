@@ -8,6 +8,7 @@ mod cpu;
 mod disk;
 mod fixer;
 mod hostname;
+mod keyboard;
 mod memory;
 mod recording;
 mod script;
@@ -78,6 +79,7 @@ pub mod icon {
     pub const CALENDAR: &str = "\u{f073}";
     pub const HOST: &str = "\u{f109}"; // a laptop
     pub const KVM: &str = "\u{f1483}"; // a monitor with an arrow: hand it over
+    pub const KEYBOARD: &str = "\u{f11c}";
 }
 
 /// An icon whose click opens a popup that shows the live state, so the icon
@@ -100,7 +102,7 @@ impl Block for Fixed {
 
 /// The widgets a bar file can name, for error messages.
 pub const NAMES: &[&str] = &[
-    "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "record", "agents", "messages",
+    "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "keyboard", "record", "agents", "messages",
     "bluetooth", "wifi", "battery", "kvm", "clock", "date", "hostname", "script",
 ];
 
@@ -124,6 +126,7 @@ impl Factory {
             "tmp" => Box::new(disk::Disk::new(arg.unwrap_or("/tmp"), true)),
             "audio" => Box::new(audio::Audio::new(self.pulse())),
             "mic" => Box::new(audio::Mic::new(self.pulse())),
+            "keyboard" => Box::new(keyboard::Keyboard),
             "record" => Box::new(recording::Recording),
             "messages" => Box::new(fixer::Fixer),
             "battery" => Box::new(battery::Battery),
