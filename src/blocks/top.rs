@@ -16,7 +16,7 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::time::Duration;
 
-const COUNT: usize = 3;
+const COUNT: usize = 2;
 const EVERY: Duration = Duration::from_secs(5);
 /// Shares of one core.
 const WARN_AT: u32 = 50;
