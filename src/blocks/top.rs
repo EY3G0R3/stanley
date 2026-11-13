@@ -7,7 +7,7 @@
 //! reading, which steadies a ranking redrawn only every few seconds.
 //!
 //! Processes of one name count as one program, shown `name×K(N%)`: eleven
-//! fancylog processes at 1% each are one 11% fancylog, not eleven ties.
+//! creed processes at 1% each are one 11% creed, not eleven ties.
 
 use super::{cpu, dim, popup, Block, Reading};
 use crate::protocol::{clean, paint, Role};
