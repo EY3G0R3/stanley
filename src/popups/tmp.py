@@ -86,7 +86,7 @@ class Tmp(Panel):
             self.asked[session] = "Asked" if '"accepted"' in out or '"injected"' in out \
                 else "Not running" if '"undelivered"' in out else "Failed"
             self.draw()
-        run_async(["agent-msg", "send", "claude:" + session, "--kind", "request",
+        run_async(["kelly", "send", "claude:" + session, "--kind", "request",
                    "--message", text], done)
 
     def loaded(self, ok, out):
