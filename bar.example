@@ -51,7 +51,7 @@ mic        icon name
 keyboard   icon extra
 
 record     icon
-agents     icon
+agents     icon extra
 messages   icon extra
 bluetooth  icon
 wifi       icon

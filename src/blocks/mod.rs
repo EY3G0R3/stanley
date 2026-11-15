@@ -1,6 +1,7 @@
 //! Blocks: what sits on the bar, one file each. A block only reads; `render`
 //! decides what shows. The bar file names them as widgets.
 
+mod agents;
 mod audio;
 mod battery;
 mod clock;
@@ -137,7 +138,7 @@ impl Factory {
                 Some(command) => Box::new(script::Script::new(command)),
                 None => return Err("script needs a command: script:~/bin/vpn-status".into()),
             },
-            "agents" => Box::new(Fixed { icon: icon::AGENTS, name: "AI", popup: "agents" }),
+            "agents" => Box::new(agents::Agents),
             "bluetooth" => Box::new(Fixed { icon: icon::BLUETOOTH, name: "BT", popup: "bluetooth" }),
             "wifi" => Box::new(Fixed { icon: icon::WIFI, name: "WIFI", popup: "network" }),
             "kvm" => Box::new(Fixed { icon: icon::KVM, name: "KVM", popup: "kvm" }),
