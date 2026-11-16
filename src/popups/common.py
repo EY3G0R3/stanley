@@ -50,6 +50,7 @@ box.row { padding: 7px 10px; }
 .pill.ok { background: alpha(%(ok)s, .16); color: %(ok)s; }
 .pill.warn { background: alpha(%(warn)s, .14); color: %(warn)s; }
 .pill.bad { background: alpha(%(bad)s, .16); color: %(bad)s; }
+.pill.accent { background: alpha(%(accent)s, .22); color: %(accent)s; }
 switch { background: %(line)s; border-radius: 999px; border: none; }
 switch:checked { background: %(accent)s; }
 switch slider { background: %(fg)s; border-radius: 999px; min-width: 18px; min-height: 18px; margin: 3px; box-shadow: none; border: none; }
@@ -66,6 +67,9 @@ button.btn {
 }
 button.btn:hover, button.tile:hover { border-color: %(accent)s; }
 button.btn:hover label { color: %(accent)s; }
+button.btn.small { font-size: 0.79em; padding: 1px 8px; border-radius: 999px; }
+button.btn.small label { color: %(muted)s; }
+button.btn.small:hover label { color: %(accent)s; }
 button.tile {
   background: %(surface)s; border: 1px solid %(line)s; border-radius: 12px;
   padding: 12px 4px 8px; box-shadow: none;

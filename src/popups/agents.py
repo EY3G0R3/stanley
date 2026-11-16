@@ -6,14 +6,18 @@ from datetime import datetime
 
 from gi.repository import Gtk
 
-from common import C, Panel, button, clear, draw_bar, hbox, label, launch, run_async, vbox
+from common import C, Panel, button, clear, draw_bar, hbox, label, launch, pill, run_async, vbox
 
 
 class Agents(Panel):
-    """Weekly quota per agent, from the files ~/bin/agent-quota writes."""
+    """Weekly quota per agent, from the files ~/bin/agent-quota writes, and
+    which one is the default: the agent `ide` starts and the bar shows."""
     icon, title = "󰚩", "Agents"
     AGENTS = (("claude", "Claude Code"), ("codex", "Codex"))
     DIR = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "agent-quota")
+
+    DEFAULT = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"),
+                           "omarchy/defaults/agent")
 
     WEEK = 7 * 86400
 
@@ -56,6 +60,21 @@ class Agents(Panel):
                 "--agent", agent, "--prompt", prompt])
         self.app.quit()
 
+    def default(self):
+        try:
+            return "codex" if open(self.DEFAULT).read().strip() == "codex" else "claude"
+        except OSError:
+            return "claude"
+
+    def choose(self, agent):
+        """Make agent the default, as `ide --use` does; the bar follows next tick."""
+        os.makedirs(os.path.dirname(self.DEFAULT), exist_ok=True)
+        tmp = self.DEFAULT + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(agent + "\n")
+        os.replace(tmp, self.DEFAULT)
+        self.refresh()
+
     @staticmethod
     def bar(name, frac, color):
         """A thin bar with a short label, so the tokens and time bars line up."""
@@ -69,7 +88,9 @@ class Agents(Panel):
     def refresh(self):
         clear(self.body)
         self.sub.set_text("Weekly usage")
-        for agent, name in self.AGENTS:
+        chosen = self.default()
+        # The default first; sorted() keeps the rest in their usual order.
+        for agent, name in sorted(self.AGENTS, key=lambda a: a[0] != chosen):
             try:
                 percent, reset = (int(x) for x in open(os.path.join(self.DIR, agent)).read().split())
             except (OSError, ValueError):
@@ -100,7 +121,16 @@ class Agents(Panel):
             investigate = button("\U000f0349", lambda a=agent, n=name, p=percent, r=reset:
                                  self.investigate(a, n, p, r), css="ic")
             investigate.set_valign(Gtk.Align.CENTER)
-            box.append(hbox(label(name, "name", expand=True), investigate, label(f"{percent}%", "big")))
+            # The default wears an accent pill, apart from the red and green
+            # of the quota; the other offers to take its place.
+            if agent == chosen:
+                pick = pill("default", "accent")
+            else:
+                pick = button("make default", lambda a=agent: self.choose(a), css="btn")
+                pick.add_css_class("small")
+            pick.set_valign(Gtk.Align.CENTER)
+            box.append(hbox(label(name, "name"), pick, label("", expand=True), investigate,
+                            label(f"{percent}%", "big")))
             box.append(self.bar("tokens", frac, color))
             box.append(self.bar("time", week, C["muted"]))
             box.append(label(when, "sub"))
