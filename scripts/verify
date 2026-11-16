@@ -1,0 +1,5 @@
+#!/bin/sh
+# The same checks used by local development and repository automation.
+set -eu
+cd "$(dirname "$0")/.."
+make test all

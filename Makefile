@@ -12,6 +12,7 @@ install: all
 
 test:
 	cargo test --release --quiet
+	python3 -m unittest discover -s tests -q
 
 # For ~/bin/autoupdate-repos: autoupdate tests and builds a fetched commit in a
 # scratch copy, then autoupdate-install rebuilds the live checkout and restarts

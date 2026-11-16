@@ -11,6 +11,8 @@ mod fixer;
 mod hostname;
 mod keyboard;
 mod memory;
+mod messenger;
+mod messenger_unread;
 mod recording;
 mod script;
 mod top;
@@ -106,7 +108,7 @@ impl Block for Fixed {
 /// The widgets a bar file can name, for error messages.
 pub const NAMES: &[&str] = &[
     "top", "cpu", "memory", "disk", "tmp", "audio", "mic", "keyboard", "record", "agents", "messages",
-    "bluetooth", "wifi", "battery", "kvm", "clock", "date", "hostname", "script",
+    "messenger", "bluetooth", "wifi", "battery", "kvm", "clock", "date", "hostname", "script",
 ];
 
 /// Build every widget the bar file lists, and nothing else. Widgets that share
@@ -132,6 +134,7 @@ impl Factory {
             "keyboard" => Box::new(keyboard::Keyboard),
             "record" => Box::new(recording::Recording),
             "messages" => Box::new(fixer::Fixer),
+            "messenger" => Box::new(messenger::Messenger::new()),
             "battery" => Box::new(battery::Battery),
             "clock" => Box::new(clock::Clock::time()),
             "date" => Box::new(clock::Clock::date()),
