@@ -1,6 +1,5 @@
 //! Messenger service state and its private, expiring outpost snapshot.
 use super::{dim, popup, Block, Reading};
-use crate::protocol::{paint, Role};
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -49,23 +48,12 @@ fn snapshot(text: &str, invocation: &str, now: u64) -> Option<(String, Option<u6
 }
 
 fn reading(s: &Service, data: Option<(String, Option<u64>)>) -> Reading {
-    let (text, muted, bad) = match s.state.as_str() {
-        "inactive" => ("off".into(), true, false),
-        "failed" => ("failed ?".into(), false, true),
-        "activating" => ("starting ?".into(), true, false),
-        "deactivating" => ("stopping ?".into(), true, false),
-        "active" => match data {
-            Some((connection, count)) if connection == "online" =>
-                (count.map_or_else(|| "online ?".into(), |n| format!("{n}")), false, false),
-            Some((connection, _)) => (format!("{connection} ?"), false, connection == "error"),
-            None => ("running ?".into(), true, false),
-        },
-        _ => ("unavailable ?".into(), true, false),
-    };
+    let online = s.state == "active" && data.as_ref().is_some_and(|(connection, _)| connection == "online");
+    let count = if online { data.and_then(|(_, count)| count) } else { None };
     Reading {
-        icon: Some(if muted { dim(ICON) } else { ICON.into() }),
+        icon: Some(if online { ICON.into() } else { dim(ICON) }),
         name: Some("Messenger".into()),
-        extra: Some(if bad { paint(Role::Crit, &text) } else if muted { dim(&text) } else { text }),
+        extra: count.map(|n| n.to_string()),
         ..Reading::default()
     }
 }
@@ -147,11 +135,11 @@ mod tests {
     #[test]
     fn unknown_is_never_zero() {
         let active = Service { state: "active".into(), invocation: "abc".into() };
-        assert!(reading(&active, None).extra.unwrap().contains("running ?"));
+        assert_eq!(reading(&active, None).extra, None);
         assert_eq!(reading(&active, snapshot(&source("online", "0"), "abc", 100)).extra.as_deref(), Some("0"));
         assert_eq!(reading(&active, snapshot(&source("online", "12"), "abc", 100)).extra.as_deref(), Some("12"));
         for count in ["null", "-1", "1.5", "\"0\""] {
-            assert!(reading(&active, snapshot(&source("online", count), "abc", 100)).extra.unwrap().contains('?'));
+            assert_eq!(reading(&active, snapshot(&source("online", count), "abc", 100)).extra, None);
         }
     }
 
@@ -168,10 +156,11 @@ mod tests {
 
     #[test]
     fn service_states_and_click() {
-        for (state, expected) in [("inactive", "off"), ("failed", "failed ?"), ("activating", "starting ?"),
-            ("deactivating", "stopping ?"), ("", "unavailable ?")] {
+        for state in ["inactive", "failed", "activating", "deactivating", ""] {
             let s = service(&format!("LoadState=loaded\nActiveState={state}\nInvocationID=abc\n"));
-            assert!(reading(&s, Some(("online".into(), Some(7)))).extra.unwrap().contains(expected));
+            let result = reading(&s, Some(("online".into(), Some(7))));
+            assert_eq!(result.icon, Some(dim(ICON)));
+            assert_eq!(result.extra, None);
         }
         assert!(service("LoadState=not-found\nActiveState=inactive").state.is_empty());
         let mut block = Messenger::new();
@@ -182,19 +171,25 @@ mod tests {
     }
 
     #[test]
-    fn configured_widget_renders_state_and_count() {
+    fn configured_widget_renders_icon_and_known_count() {
         let mut problems = Vec::new();
         let config = crate::config::parse("messenger icon extra\n", &mut |_, e| problems.push(e.to_string()));
         assert!(problems.is_empty());
         assert!(super::super::Factory::new().build("messenger", None).is_ok());
         let active = Service { state: "active".into(), invocation: "abc".into() };
-        for (data, expected) in [(None, "running ?"), (Some(("online".into(), Some(0))), "0"),
-            (Some(("online".into(), Some(8))), "8"), (Some(("offline".into(), None)), "offline ?"),
-            (Some(("error".into(), None)), "error ?")] {
-            let (text, bare) = crate::render::block(config.entries[0].parts, &reading(&active, data), &config.settings);
+        for (data, online, expected) in [(None, false, ICON.to_string()),
+            (Some(("online".into(), None)), true, ICON.to_string()),
+            (Some(("online".into(), Some(0))), true, format!("{ICON}0")),
+            (Some(("online".into(), Some(8))), true, format!("{ICON}8")),
+            (Some(("offline".into(), None)), false, ICON.to_string()),
+            (Some(("connecting".into(), None)), false, ICON.to_string()),
+            (Some(("error".into(), None)), false, ICON.to_string())] {
+            let result = reading(&active, data);
+            assert_eq!(result.icon, Some(if online { ICON.into() } else { dim(ICON) }));
+            let (text, bare) = crate::render::block(config.entries[0].parts, &result, &config.settings);
             let visible: String = text.chars().filter(|&c| c >= ' ').collect();
-            assert_eq!(visible, format!("{ICON}{expected}"));
-            assert!(!bare);
+            assert_eq!(visible, expected);
+            assert_eq!(bare, result.extra.is_none());
         }
     }
 }

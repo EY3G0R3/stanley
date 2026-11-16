@@ -5,14 +5,13 @@ outpost. A left click opens its popup. Start and Stop act only on the user
 unit `quiver-outpost-messenger.service`; they do not enable it at login.
 The popup also offers its service log.
 
-The bar shows `off`, `starting ?`, `stopping ?`, `failed ?`, or `unavailable ?`
-when the service is not running. `running ?` means the service is active but
-there is no current connection report. A running process alone does not prove
-that Messenger or the Quiver bridge is connected.
+The bar icon is white when a fresh report confirms the active outpost is
+online, and gray when offline or unavailable. It shows no connection text or
+unknown-count marker. A running process alone does not prove that Messenger
+or the Quiver bridge is connected. Connection details remain in the popup.
 
-A connected outpost shows its unread message count, including `0` when the
-source reports a real zero. `online ?` means connected with unread unavailable;
-`offline ?`, `connecting ?`, and `error ?` describe the connection report.
+A connected outpost shows its unread message count only when the source
+reports an accurate count, including a real zero. Otherwise `extra` is omitted.
 The popup labels whether the count is native Messenger unread or unread
 Messenger messages relayed into Quiver for the owner. Those are
 different read positions. A Quiver count must count canonical Messenger
