@@ -35,12 +35,7 @@ The producer must write atomically with mode 0600 and refresh at least every
   "connection": "online",
   "unreadSource": "messenger",
   "unreadMessages": null,
-  "unreadReason": "Complete unread state is not available",
-  "quiverUrl": "https://example.test",
-  "appId": "quiver-messenger",
-  "channelId": "baseChannelId",
-  "ownerHandle": "owner",
-  "ownerMemberId": "stableHumanMemberId"
+  "unreadReason": "Complete unread state is not available"
 }
 ```
 
@@ -55,21 +50,10 @@ or null when coverage, read markers, identity, or the source is unavailable.
 A bounded or partial count must remain null. `unreadReason` explains that in
 the popup.
 
-When native unread is unavailable, Stanley queries `quiver messages app-unread`
-using the acknowledged owner, stable human member ID, endpoint and base channel.
-It uses the owner's existing saved session, without login or session renewal.
-The read-only query counts `in:` relay posts once by canonical key across the
-base channel and its current delegates, using that human's raw read positions.
-This includes posts relayed from the owner's other Messenger devices; it excludes
-history blocks and delivery notices. Removed delegates are outside this metric,
-which the popup labels “Quiver relayed unread (current chats)”.
-
-Queries run at most every 15 seconds per view, with an eight-second deadline
-and a 20-second result cache. Context changes and offline state discard counts.
-The CLI needs the compatible server query and saved human session; missing
-identity, incomplete scans, query failures and unavailable APIs remain unknown.
-The widget requires coreutils `timeout` and `quiver` on PATH. The outpost
-publisher and compatible Quiver API/CLI are separate installation dependencies.
+The current outpost cannot prove complete native unread coverage, so its
+count remains null. No new Quiver API, database state or CLI feature is
+required. The widget does not query Quiver unread or infer it from partial
+local message caches.
 
 Without a compatible publisher, service status and controls still work and
 unread remains unavailable. Stanley never calls `quiver messages unread`,

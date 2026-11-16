@@ -70,8 +70,6 @@ class MessengerTests(unittest.TestCase):
                     view.refresh()
                 self.assertEqual(view.sub.text, title)
                 self.assertEqual(view.body.children[1].text, unread)
-                self.assertTrue(view.body.children[1].wrap)
-                self.assertEqual(view.body.children[1].width, 42)
                 self.assertEqual((view.start.sensitive, view.stop.sensitive), (start, stop))
 
     def test_actions_only_start_stop_and_show_errors(self):
@@ -103,7 +101,7 @@ class MessengerTests(unittest.TestCase):
             self.assertIsNone(popup.snapshot("other", now=100))
             self.assertIsNone(popup.snapshot("abc", now=131))
             self.assertIsNone(popup.snapshot("abc", now=99))
-            self.assertIn("Quiver relayed unread (current chats): 0", popup.describe(True, service(), lambda _: data))
+            self.assertIn("Quiver relayed unread messages: 0", popup.describe(True, service(), lambda _: data))
             for count in (None, -1, 1.5, True, "0"):
                 data["unreadMessages"] = count
                 self.assertIn("Unread unavailable", popup.describe(True, service(), lambda _: data)[2])
@@ -113,44 +111,6 @@ class MessengerTests(unittest.TestCase):
             self.assertIsNone(popup.snapshot("abc", now=100))
             path.write_text("[]")
             self.assertIsNone(popup.snapshot("abc", now=100))
-
-    def test_read_only_query_is_bound_to_owner_and_installation(self):
-        data = dict(connection="online", unreadMessages=None, unreadSource="messenger",
-                    quiverUrl="https://example.test", channelId="abc123", appId="quiver-messenger",
-                    ownerHandle="owner", ownerMemberId="human123", invocationId="abc")
-        target = popup.query_target(data)
-        self.assertEqual(popup.query_command(target), ["timeout", "--kill-after=1s", "8s", "quiver",
-                         "--as", "owner@example.test", "messages", "app-unread", "--channel-id", "abc123",
-                         "--app", "quiver-messenger", "--key-prefix", "in:", "--member-id", "human123", "--json"])
-        for count in (0, 8):
-            self.assertEqual(popup.query_result(True, json.dumps(dict(memberHandle="owner", unreadMessages=count)), target)[0], count)
-        for value in (dict(memberHandle="other", unreadMessages=8),
-                      dict(memberHandle="owner", unreadMessages=None, unreadReason="scan incomplete"),
-                      dict(memberHandle="owner", unreadMessages=True)):
-            self.assertIsNone(popup.query_result(True, json.dumps(value), target)[0])
-        for origin in ("https://user:secret@example.test", "https://example.test/path", "http://example.test", "https://127.0.0.1:8080"):
-            self.assertIsNone(popup.query_target(dict(data, quiverUrl=origin)))
-        self.assertIsNotNone(popup.query_target(dict(data, quiverUrl="http://127.0.0.1:8080")))
-        self.assertIsNone(popup.query_target(dict(data, connection="offline")))
-
-    def test_query_renders_zero_and_discards_result_when_offline(self):
-        view = popup.Messenger(None)
-        callbacks = []
-        data = dict(connection="online", unreadMessages=None, unreadSource="messenger",
-                    quiverUrl="https://example.test", channelId="abc123", appId="quiver-messenger",
-                    ownerHandle="owner", ownerMemberId="human123", invocationId="abc")
-        with patch.object(popup, "snapshot", return_value=data), \
-                patch.object(popup, "run_async", side_effect=lambda cmd, cb: callbacks.append((cmd, cb))):
-            view.refresh()
-            callbacks.pop(0)[1](True, service())
-            query = callbacks.pop(0)
-            query[1](True, '{"memberHandle":"owner","unreadMessages":0}')
-            self.assertEqual(view.body.children[1].text, "Quiver relayed unread (current chats): 0")
-            view.refresh()
-            callbacks.pop(0)[1](True, service("inactive"))
-            query[1](True, '{"memberHandle":"owner","unreadMessages":8}')
-            self.assertEqual(view.sub.text, "Stopped")
-            self.assertEqual(view.body.children[1].text, "Unread unavailable while offline")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ use crate::protocol::{paint, Role};
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use super::messenger_unread::{Target, Unread};
 
 const UNIT: &str = "quiver-outpost-messenger.service";
 const EVERY: Duration = Duration::from_secs(5);
@@ -75,12 +74,11 @@ pub struct Messenger {
     running: Option<(Child, Instant)>,
     next: Instant,
     service: Service,
-    unread: Unread,
 }
 
 impl Messenger {
     pub fn new() -> Self {
-        Self { running: None, next: Instant::now(), service: Service::default(), unread: Unread::new() }
+        Self { running: None, next: Instant::now(), service: Service::default() }
     }
 }
 
@@ -118,20 +116,13 @@ impl Block for Messenger {
                 Err(_) => self.service = Service::default(),
             }
         }
-        let mut target = None;
         let data = std::env::var_os("XDG_RUNTIME_DIR").and_then(|dir| {
             let path = std::path::PathBuf::from(dir).join("quiver-outpost-messenger/status.json");
             let mut text = String::new();
             std::fs::File::open(path).ok()?.take(8192).read_to_string(&mut text).ok()?;
             let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?.as_secs();
-            let data = snapshot(&text, &self.service.invocation, now)?;
-            if self.service.state == "active" && data.0 == "online" && data.1.is_none() {
-                target = serde_json::from_str(&text).ok().and_then(|v| Target::from_snapshot(&v));
-            }
-            Some(data)
+            snapshot(&text, &self.service.invocation, now)
         });
-        let fallback = self.unread.read(target);
-        let data = data.map(|(connection, count)| (connection, count.or(fallback)));
         reading(&self.service, data)
     }
 }

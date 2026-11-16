@@ -12,7 +12,6 @@ mod hostname;
 mod keyboard;
 mod memory;
 mod messenger;
-mod messenger_unread;
 mod recording;
 mod script;
 mod top;
