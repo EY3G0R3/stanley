@@ -69,7 +69,9 @@ pub mod icon {
     pub const BLUETOOTH: &str = "\u{f293}";
     pub const WEBCAM: &str = "\u{f030}";
     pub const MIC: &str = "\u{f130}";
-    pub const AGENTS: &str = "\u{f06a9}"; // a robot
+    // Nerd Fonts 3.3 has no Anthropic or OpenAI logo; these stand in.
+    pub const CLAUDE: &str = "\u{f06c4}"; // an asterisk, like Claude's starburst
+    pub const CODEX: &str = "\u{f02d9}"; // a hexagon outline, like OpenAI's knot
     pub const FIXER: &str = "\u{f04c6}"; // spellcheck: fix-my-messages
     pub const RECORD: &str = "\u{f0ec2}"; // as on the Omarchy bar
     pub const WIFI: &str = "\u{f1eb}";

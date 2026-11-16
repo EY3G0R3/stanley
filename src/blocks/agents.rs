@@ -1,10 +1,22 @@
-//! Weekly quota margin at the average rate since the window began.
+//! The default agent's logo and weekly quota margin at the average rate since
+//! the window began. The default is the one `ide` starts, stored in
+//! ~/.config/omarchy/defaults/agent; the agents popup changes it.
 
 use super::{icon, popup, Block, Reading};
 use crate::protocol::{paint, Role};
 use std::{env, fs, path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
 
 pub struct Agents;
+
+/// The default agent: codex when the file says so, otherwise claude.
+fn default_agent(data: Option<&str>) -> &'static str {
+    if data.map(str::trim) == Some("codex") { "codex" } else { "claude" }
+}
+
+fn dir(var: &str, fallback: &str) -> Option<PathBuf> {
+    env::var_os(var).filter(|s| !s.is_empty()).map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(fallback)))
+}
 
 fn margin(data: &str, now: f64) -> Option<String> {
     let mut fields = data.split_whitespace();
@@ -28,14 +40,16 @@ impl Block for Agents {
     }
 
     fn read(&mut self) -> Reading {
-        let dir = env::var_os("XDG_STATE_HOME").filter(|s| !s.is_empty()).map(PathBuf::from)
-            .or_else(|| env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")));
+        let chosen = dir("XDG_CONFIG_HOME", ".config")
+            .and_then(|d| fs::read_to_string(d.join("omarchy/defaults/agent")).ok());
+        let agent = default_agent(chosen.as_deref());
+        let (logo, name) = if agent == "codex" { (icon::CODEX, "Codex") } else { (icon::CLAUDE, "Claude") };
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs_f64();
-        let extra = dir.and_then(|dir| {
-            let data = fs::read_to_string(dir.join("agent-quota/claude")).ok()?;
+        let extra = dir("XDG_STATE_HOME", ".local/state").and_then(|d| {
+            let data = fs::read_to_string(d.join("agent-quota").join(agent)).ok()?;
             margin(&data, now)
         });
-        Reading { icon: Some(icon::AGENTS.into()), name: Some("AI".into()), extra, ..Reading::default() }
+        Reading { icon: Some(logo.into()), name: Some(name.into()), extra, ..Reading::default() }
     }
 }
 
@@ -50,6 +64,14 @@ mod tests {
                 Some(paint(Role::Muted, &format!("{hours:+}hrs"))));
         }
         assert_eq!(margin("50 604800", 84.0 * 3600.0), Some(paint(Role::Muted, "0hrs")));
+    }
+
+    #[test]
+    fn only_codex_switches_from_claude() {
+        assert_eq!(default_agent(Some("codex\n")), "codex");
+        for data in [None, Some(""), Some("claude\n"), Some("gemini")] {
+            assert_eq!(default_agent(data), "claude");
+        }
     }
 
     #[test]
