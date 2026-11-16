@@ -193,7 +193,7 @@ mod tests {
             (Some(("error".into(), None)), "error ?")] {
             let (text, bare) = crate::render::block(config.entries[0].parts, &reading(&active, data), &config.settings);
             let visible: String = text.chars().filter(|&c| c >= ' ').collect();
-            assert_eq!(visible, format!("{ICON} {expected}"));
+            assert_eq!(visible, format!("{ICON}{expected}"));
             assert!(!bare);
         }
     }

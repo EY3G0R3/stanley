@@ -5,8 +5,9 @@ use crate::meter;
 use crate::protocol::{is_blank, Role, BLOCK, CENTER, INDEX_BASE, LEFT, RIGHT};
 use crate::blocks::Reading;
 
-/// One widget's text: its listed parts that have something to show, one space
-/// apart. Empty when none do, and then the widget drops out of the bar.
+/// One widget's text: its listed parts that have something to show. The icon
+/// touches the next part; text parts are one space apart. Empty when none do,
+/// and then the widget drops out of the bar.
 /// `bare` is true when only the icon is drawn.
 pub fn block(parts: Parts, reading: &Reading, settings: &Settings) -> (String, bool) {
     let mut pieces: Vec<String> = Vec::new();
@@ -40,7 +41,17 @@ pub fn block(parts: Parts, reading: &Reading, settings: &Settings) -> (String, b
     if pieces.is_empty() {
         return (String::new(), false);
     }
-    let mut text = pieces.join(" ");
+    let mut text = String::new();
+    for (i, piece) in pieces.iter().enumerate() {
+        if i > 0 {
+            let follows_icon = i == 1 && parts.icon
+                && reading.icon.as_ref().is_some_and(|icon| !is_blank(icon));
+            if !follows_icon {
+                text.push(' ');
+            }
+        }
+        text.push_str(piece);
+    }
     text.push(Role::Normal.ch());
     (text, only_icon)
 }
@@ -113,7 +124,17 @@ mod tests {
         assert_eq!(block(icon_only, &r, &s), ("I\x01".to_string(), true));
         let text = Parts { icon: false, name: true, gauge: false, extra: false };
         assert_eq!(visible(&block(text, &r, &s).0), "CPU");
-        assert_eq!(visible(&block(ALL, &r, &s).0), "I CPU ──────");
+        assert_eq!(visible(&block(ALL, &r, &s).0), "ICPU ──────");
+    }
+
+    #[test]
+    fn icon_spacing_skips_missing_parts() {
+        let s = Settings::default();
+        let mut r = Reading { icon: Some("I".into()), extra: Some("online".into()), ..Reading::default() };
+        assert_eq!(visible(&block(ALL, &r, &s).0), "Ionline");
+        r.icon = Some("\x02".into());
+        r.name = Some("status".into());
+        assert_eq!(visible(&block(ALL, &r, &s).0), "status online");
     }
 
     #[test]
@@ -132,7 +153,9 @@ mod tests {
             right(3, 1, "c", true),
             right(4, 1, "d", true),
         ];
-        assert_eq!(line(&blocks, &s), "\x1c\x1d\x1e\x1f!a\x1f#  b\x1f$    c\x1f% d");
+        assert_eq!(line(&blocks, &s), "\x1c\x1d\x1e\x1f!a\x1f# b\x1f$  c\x1f% d");
+        let custom = Settings { gap: 3, group_gap: 5, icon_gap: 0, ..s };
+        assert_eq!(line(&blocks, &custom), "\x1c\x1d\x1e\x1f!a\x1f#   b\x1f$     c\x1f%d");
     }
 
     #[test]

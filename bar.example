@@ -2,7 +2,8 @@
 #
 # One widget per line, in bar order. A widget that is not listed is hidden
 # and costs nothing. A blank line starts a group; groups get a wider gap, so
-# gauges and bare icons do not mix.
+# groups remain distinct. Widgets default to one space apart, groups to two;
+# an icon sits directly beside its text or gauge.
 #
 #   widget[:arg]  parts...  [click: command]
 #

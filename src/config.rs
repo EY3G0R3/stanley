@@ -65,7 +65,7 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { interval_ms: 1000, meter: Meter::default(), gap: 2, group_gap: 4, icon_gap: 1 }
+        Settings { interval_ms: 1000, meter: Meter::default(), gap: 1, group_gap: 2, icon_gap: 1 }
     }
 }
 
