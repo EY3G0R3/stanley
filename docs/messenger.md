@@ -20,6 +20,34 @@ different read positions. A Quiver count must count canonical Messenger
 messages once across breakouts. A thread count, activity timestamp, or sum of
 breakout notification badges is not an unread message count.
 
+## Recent chats and replies
+
+When the popup opens, it loads the five most recent chats once, off the GTK
+thread, with a 10 second limit. Each row shows the chat name, the last message
+on one shortened line, and its age (`now`, `5m`, `3h`, `2d`). If the call
+fails or times out, one short line replaces the list; Start, Stop, and the log
+still work. The bar widget does not run these calls.
+
+Click a chat to open a reply line under it. Enter or Send sends the text;
+nothing is sent any other way, including when the popup closes. The line then
+shows `Sent` or the error. `Open chat` opens that chat's breakout in the
+browser. `Open in Quiver` opens the Messenger app's DM.
+
+The popup runs the quiver CLI from `~/src/morkovka.quiver.city`, the same
+workspace the service uses, so it acts as that workspace's member. Quiver
+fills in `caller` itself:
+
+| Control | Command |
+| --- | --- |
+| Open popup | `quiver call -c @quiver-messenger quiver-messenger.chats '{"limit": 5}'` |
+| Send | `quiver call -c @quiver-messenger quiver-messenger.sendMessage -` with `{"threadId", "text"}` on stdin |
+| Open chat | `quiver call -c @quiver-messenger quiver-messenger.openChat '{"threadId": ...}'`, then `xdg-open <baseUrl>/~/c/+<breakoutChannelId>` |
+| Open in Quiver | `xdg-open <baseUrl>/~/c/@quiver-messenger` |
+
+`baseUrl` comes from the workspace's `.quiver/config.json`. The reply goes on
+stdin so it does not appear in the process list. Chat names, previews, and
+replies stay in the popup's memory only; nothing writes them to disk or a log.
+
 ## Local status source
 
 The outpost publishes a small credential-free JSON snapshot at
@@ -75,3 +103,6 @@ use a fake UI and subprocess runner, so they need no display, running service,
 credentials, or GTK installation and cannot start or stop the live service.
 They cover service and source availability, zero/nonzero/invalid counts,
 source age and identity, visible labels, and explicit start/stop arguments.
+Chat fixtures cover the listed and shortened chats, an empty list, a failed
+or timed-out query, a sent and a failed reply, and the exact arguments for
+`chats`, `sendMessage`, `openChat`, and the browser links.
