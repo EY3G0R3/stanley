@@ -11,7 +11,9 @@ unknown-count marker. A running process alone does not prove that Messenger
 or the Quiver bridge is connected. Connection details remain in the popup.
 
 A connected outpost shows its unread message count only when the source
-reports an accurate count, including a real zero. Otherwise `extra` is omitted.
+reports an accurate count, including a real zero. Without one, it shows the
+exact unread chat count when the source reports it. Otherwise `extra` is
+omitted. The popup labels a chat count as chats, never as messages.
 The popup labels whether the count is native Messenger unread or unread
 Messenger messages relayed into Quiver for the owner. Those are
 different read positions. A Quiver count must count canonical Messenger
@@ -34,7 +36,9 @@ The producer must write atomically with mode 0600 and refresh at least every
   "connection": "online",
   "unreadSource": "messenger",
   "unreadMessages": null,
-  "unreadReason": "Complete unread state is not available"
+  "unreadReason": "Complete unread state is not available",
+  "unreadChats": 3,
+  "unreadChatsReason": null
 }
 ```
 
@@ -47,10 +51,16 @@ Counts are accepted only while online and with a recognized `unreadSource`
 (`messenger` or `quiver`). `unreadMessages` is an exact nonnegative integer,
 or null when coverage, read markers, identity, or the source is unavailable.
 A bounded or partial count must remain null. `unreadReason` explains that in
-the popup.
+the popup. `unreadChats` is the exact nonnegative number of Messenger chats
+with unread messages, or null. It is accepted only while online. Negative,
+fractional, boolean, and string values are unavailable. A missing field is
+null, so older snapshots behave as before. A message count wins when both are
+present. When both are null, the popup shows `unreadChatsReason` if it is a
+string, else `unreadReason`.
 
-The current outpost cannot prove complete native unread coverage, so its
-count remains null. No new Quiver API, database state or CLI feature is
+The current outpost cannot prove complete native unread message coverage, so
+`unreadMessages` remains null. It reports `unreadChats` instead, which the
+bar shows as the count and the popup labels as unread chats. No new Quiver API, database state or CLI feature is
 required. The widget does not query Quiver unread or infer it from partial
 local message caches.
 

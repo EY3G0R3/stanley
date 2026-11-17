@@ -43,10 +43,16 @@ def describe(ok, output, source):
     connection = data["connection"]
     count = data.get("unreadMessages")
     metric = {"messenger": "Messenger", "quiver": "Quiver relayed"}.get(data.get("unreadSource"))
+    chats = data.get("unreadChats")
     if connection == "online" and type(count) is int and count >= 0 and metric:
         unread = f"{metric} unread messages: {count}"
+    elif connection == "online" and type(chats) is int and chats >= 0:
+        # A chat count is never a message count; keep the label explicit.
+        unread = f"Messenger unread chats: {chats}"
     else:
-        reason = data.get("unreadReason")
+        reason = data.get("unreadChatsReason")
+        if not isinstance(reason, str):
+            reason = data.get("unreadReason")
         unread = "Unread unavailable" + (f" · {reason[:240]}" if isinstance(reason, str) else "")
     return "Service running", f"Connection {connection}", unread, False, True
 

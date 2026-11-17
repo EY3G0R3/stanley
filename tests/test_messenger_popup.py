@@ -112,6 +112,23 @@ class MessengerTests(unittest.TestCase):
             path.write_text("[]")
             self.assertIsNone(popup.snapshot("abc", now=100))
 
+    def test_unread_chats_label_reason_and_offline(self):
+        def unread(**fields):
+            data = dict(connection="online", unreadSource="messenger", unreadMessages=None)
+            data.update(fields)
+            return popup.describe(True, service(), lambda _: data)[2]
+
+        self.assertEqual(unread(unreadChats=0), "Messenger unread chats: 0")
+        self.assertEqual(unread(unreadChats=3), "Messenger unread chats: 3")
+        self.assertEqual(unread(unreadMessages=5, unreadChats=3), "Messenger unread messages: 5")
+        for count in (-1, 1.5, True, "3"):
+            self.assertEqual(unread(unreadChats=count), "Unread unavailable")
+        self.assertEqual(unread(unreadChats=None, unreadChatsReason="Read markers missing",
+                                unreadReason="old"), "Unread unavailable · Read markers missing")
+        self.assertEqual(unread(unreadChats=None, unreadReason="old"), "Unread unavailable · old")
+        self.assertEqual(unread(connection="offline", unreadChats=3), "Unread unavailable")
+        self.assertNotIn("messages", unread(unreadChats=3))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -29,7 +29,8 @@ fn service(text: &str) -> Service {
 }
 
 /// A snapshot is valid only for this service invocation and a recent heartbeat.
-/// Never infer unread from chats, timestamps, or duplicated breakout messages.
+/// Never infer unread from chat lists, timestamps, or duplicated breakout messages;
+/// accept only counts the source reports.
 fn snapshot(text: &str, invocation: &str, now: u64) -> Option<(String, Option<u64>)> {
     let v: serde_json::Value = serde_json::from_str(text).ok()?;
     let stamp = v["updatedAt"].as_u64()?;
@@ -43,7 +44,10 @@ fn snapshot(text: &str, invocation: &str, now: u64) -> Option<(String, Option<u6
         return None;
     }
     let source_known = matches!(v["unreadSource"].as_str(), Some("messenger" | "quiver"));
-    let count = if connection == "online" && source_known { v["unreadMessages"].as_u64() } else { None };
+    let messages = if source_known { v["unreadMessages"].as_u64() } else { None };
+    // A chat count is a separate, labeled metric; it never stands in for messages
+    // in the popup, only in the bar extra when no message count exists.
+    let count = if connection == "online" { messages.or_else(|| v["unreadChats"].as_u64()) } else { None };
     Some((connection.into(), count))
 }
 
@@ -141,6 +145,25 @@ mod tests {
         for count in ["null", "-1", "1.5", "\"0\""] {
             assert_eq!(reading(&active, snapshot(&source("online", count), "abc", 100)).extra, None);
         }
+    }
+
+    fn chats(connection: &str, messages: &str, chats: &str) -> String {
+        format!(r#"{{"version":1,"updatedAt":100,"invocationId":"abc","connection":"{connection}","unreadSource":"messenger","unreadMessages":{messages},"unreadChats":{chats}}}"#)
+    }
+
+    #[test]
+    fn unread_chats_fill_extra_without_messages() {
+        let active = Service { state: "active".into(), invocation: "abc".into() };
+        let extra = |text: String| reading(&active, snapshot(&text, "abc", 100)).extra;
+        assert_eq!(extra(chats("online", "null", "0")).as_deref(), Some("0"));
+        assert_eq!(extra(chats("online", "null", "3")).as_deref(), Some("3"));
+        assert_eq!(extra(chats("online", "null", "null")), None);
+        assert_eq!(extra(chats("offline", "null", "3")), None);
+        for count in ["-1", "1.5", "true", "\"3\""] {
+            assert_eq!(extra(chats("online", "null", count)), None);
+        }
+        assert_eq!(extra(chats("online", "5", "3")).as_deref(), Some("5"));
+        assert_eq!(extra(chats("online", "0", "3")).as_deref(), Some("0"));
     }
 
     #[test]
