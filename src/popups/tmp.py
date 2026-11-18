@@ -198,8 +198,11 @@ class Tmp(Panel):
             for e in largest:
                 kind = {"stale": "warn", "in use": ""}.get(e.get("status"), "")
                 name = e["name"] + ("/" if e.get("isDir") else "")
-                box.append(row(None, name, hbox(pill(e.get("status", ""), kind), label(human(e["size"]), "meta"), spacing=6),
-                               on_click=lambda n=e["name"]: (launch(["xdg-open", os.path.join("/tmp", n)]), self.app.quit())))
+                line = row(None, name, hbox(pill(e.get("status", ""), kind), label(human(e["size"]), "meta"), spacing=6),
+                           on_click=lambda n=e["name"]: (launch(["xdg-open", os.path.join("/tmp", n)]), self.app.quit()))
+                # The name is cut short to fit; hovering shows it whole, with why it has its status.
+                line.set_tooltip_text("/tmp/" + name + (f"\n{e['note']}" if e.get("note") else ""))
+                box.append(line)
             self.body.append(box)
 
         if self.agents:
