@@ -23,6 +23,17 @@ def task_name(folder):
     return folder.replace("-", "/")
 
 
+def capacity(r):
+    """Total, used, and free bytes from a tmp-usage report, and whether the
+    per-user quota (not the filesystem) is the limit."""
+    quota = r.get("quota") or {}
+    cap = r.get("capacity") or {}
+    limited = r.get("limitedBy") == "quota" and quota.get("limit")
+    total = quota["limit"] if limited else cap.get("total", 0)
+    used = quota["used"] if limited else cap.get("used", 0)
+    return total, used, r.get("free", total - used), limited
+
+
 class Tmp(Panel):
     icon, title = "\U000f0aba", "/tmp"
     COLORS = {"in use": C["cyan"], "stale": C["warn"], "recent": C["accent"],
@@ -36,7 +47,7 @@ class Tmp(Panel):
            "Your temp folder {path} holds {size}. Delete the build copies and scratch "
            "files you no longer need, keep only what your current work uses, and reuse "
            "one build folder from now on. No reply needed.")
-    AUDIT = ("From the user, via the stanley /tmp popup: /tmp has {free} free of {total}. "
+    AUDIT = ("From the user, via the stanley /tmp popup: {state}"
              "Audit /tmp and suggest what to clean up. Start with `tmp-usage` and "
              "`tmp-usage --cleanup-stale --dry-run`, then look into the largest entries, "
              "the recent and kept ones, and folders in /tmp/claude-{uid} whose session has "
@@ -86,10 +97,13 @@ class Tmp(Panel):
             self.draw()
 
     def audit(self):
-        r = self.report or {}
-        quota = r.get("quota") or {}
-        total = quota.get("limit") or (r.get("capacity") or {}).get("total", 0)
-        prompt = self.AUDIT.format(free=human(r.get("free", 0)), total=human(total), uid=os.getuid())
+        # Audit can be pressed before the scan ends; then there are no numbers to give.
+        if self.report is None:
+            state = ""
+        else:
+            total, _, free, _ = capacity(self.report)
+            state = f"/tmp has {human(free)} free of {human(total)}. "
+        prompt = self.AUDIT.format(state=state, uid=os.getuid())
         # As the Agents popup does: the tab opens in the main Sprinkles window.
         launch(["env", "-u", "KITTY_LISTEN_ON", "-u", "KITTY_WINDOW_ID",
                 "dwight", "project", "open", os.path.expanduser("~"), "--new",
@@ -149,12 +163,7 @@ class Tmp(Panel):
     def draw(self):
         r = self.report
         clear(self.body)
-        quota = r.get("quota") or {}
-        cap = r.get("capacity") or {}
-        limited = r.get("limitedBy") == "quota" and quota.get("limit")
-        total = quota["limit"] if limited else cap.get("total", 0)
-        used = quota["used"] if limited else cap.get("used", 0)
-        free = r.get("free", total - used)
+        total, used, free, limited = capacity(r)
         frac = used / total if total else 0
         self.sub.set_text("Limited by your per-user quota" if limited else "Whole filesystem")
         color = C["bad"] if frac >= .9 else C["warn"] if frac >= .75 else C["ok"]
