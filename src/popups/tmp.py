@@ -215,7 +215,10 @@ class Tmp(Panel):
                     action.set_tooltip_text("Ask this agent to clean its temp files")
                 action.set_valign(Gtk.Align.CENTER)
                 meta = human(a["size"]) + (" · ended" if ended else "")
-                box.append(row(None, a["name"], hbox(label(meta, "meta"), action, spacing=6)))
+                line = row(None, a["name"], hbox(label(meta, "meta"), action, spacing=6))
+                # The name is cut short to fit; hovering shows it whole.
+                line.set_tooltip_text(a["name"])
+                box.append(line)
             self.body.append(box)
 
         if self.clean_note:
