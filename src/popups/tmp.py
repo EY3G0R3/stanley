@@ -42,6 +42,7 @@ class Tmp(Panel):
         self.report = None
         self.agents = []
         self.asked = {}
+        self.clean_note = None
         self.clean_btn = None
 
     def build_foot(self):
@@ -162,6 +163,13 @@ class Tmp(Panel):
                 box.append(row(None, a["name"], hbox(label(human(a["size"]), "meta"), action, spacing=6)))
             self.body.append(box)
 
+        if self.clean_note:
+            # Wrap to the card's width; a long note must not widen the card.
+            note = label(self.clean_note, "sub", expand=True)
+            note.set_wrap(True)
+            note.set_max_width_chars(1)
+            self.body.append(note)
+
         stale = (r.get("staleCleanup") or {}).get("size", 0)
         if self.clean_btn and not self.clean_btn.has_css_class("armed"):
             self.clean_btn.set_label(f"Clean stale ({human(stale)})" if stale else "Nothing stale")
@@ -171,7 +179,20 @@ class Tmp(Panel):
         self.clean_btn.remove_css_class("armed")
         self.clean_btn.set_label("Cleaning…")
         self.clean_btn.set_sensitive(False)
-        run_async(["tmp-usage", "--cleanup-stale"], lambda *_: self.refresh())
+        run_async(["tmp-usage", "--cleanup-stale", "--color", "never"], self.cleaned)
+
+    def cleaned(self, ok, out):
+        """Say what the cleanup did; when it kept entries, the first reason why."""
+        lines = [line.strip() for line in out.splitlines()]
+        done = next((line for line in lines if line.startswith("Deleted ")), None)
+        kept = next((lines[i + 1] for i, line in enumerate(lines[:-1])
+                     if line.startswith("Kept ")), None)
+        if not ok:
+            self.clean_note = "Cleanup failed: " + (out.strip().splitlines() or ["no output"])[-1][:80]
+        else:
+            self.clean_note = " · ".join(x for x in (done, kept and "kept: " + " ".join(kept.split())) if x) \
+                or "Cleanup finished"
+        self.refresh()
 
     def draw_stack(self, cr, w, h, buckets, total):
         rgb(cr, C["line"])
