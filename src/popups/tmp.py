@@ -42,6 +42,7 @@ class Tmp(Panel):
         self.report = None
         self.agents = []
         self.asked = {}
+        self.live = None
         self.clean_note = None
         self.clean_btn = None
 
@@ -60,6 +61,30 @@ class Tmp(Panel):
             self.body.append(label("Scanning /tmp…", "sub"))
         run_async(["tmp-usage", "--json", "--limit", "5"], self.loaded)
         run_async(["du", "-xb", "-d", "2", self.CLAUDE_DIR], self.agents_loaded)
+        run_async(["kelly", "targets", "--json"], self.live_loaded)
+
+    def live_loaded(self, ok, out):
+        """The Claude sessions kelly can reach. A temp folder whose session is
+        not among them belongs to a session that has ended."""
+        try:
+            targets = json.loads(out) if ok else None
+        except ValueError:
+            targets = None
+        self.live = None if targets is None else \
+            {t.split(":", 1)[1] for t in targets if t.startswith("claude:")}
+        if self.report is not None:
+            self.draw()
+
+    def delete(self, agent):
+        """Remove the temp folder of a session that has ended."""
+        session = agent["session"]
+        self.asked[session] = "Deleting…"
+        self.draw()
+
+        def done(ok, _out):
+            self.asked[session] = "Deleted" if ok else "Failed"
+            self.refresh()
+        run_async(["rm", "-rf", "--", agent["path"]], done)
 
     def agents_loaded(self, _ok, out):
         """One entry per Claude session folder, largest first. du also reports
@@ -85,7 +110,8 @@ class Tmp(Panel):
 
         def done(ok, out):
             self.asked[session] = "Asked" if '"accepted"' in out or '"injected"' in out \
-                else "Not running" if '"undelivered"' in out else "Failed"
+                else "Not running" if '"undelivered"' in out or "target_unavailable" in out \
+                else "Failed"
             self.draw()
         run_async(["kelly", "send", "claude:" + session, "--kind", "request",
                    "--message", text], done)
@@ -151,8 +177,15 @@ class Tmp(Panel):
             box = vbox(4)
             for a in self.agents:
                 state = self.asked.get(a["session"])
+                ended = self.live is not None and a["session"] not in self.live
                 if state:
-                    action = pill(state, "ok" if state == "Asked" else "warn")
+                    action = pill(state, "ok" if state in ("Asked", "Deleted") else "warn")
+                elif ended:
+                    # No session to ask: offer to delete the folder, on a second click.
+                    action = Gtk.Button(label="\U000f0a7a")
+                    action.add_css_class("btn")
+                    confirm(action, lambda a=a: self.delete(a), "Delete?")
+                    action.set_tooltip_text("Session ended. Delete its temp folder")
                 else:
                     # An icon keeps the row to one line; the tooltip says what it does.
                     # The footer's bordered style, so it reads as a button; the
@@ -160,7 +193,8 @@ class Tmp(Panel):
                     action = button("\U000f00e2", lambda a=a: self.ask(a))
                     action.set_tooltip_text("Ask this agent to clean its temp files")
                 action.set_valign(Gtk.Align.CENTER)
-                box.append(row(None, a["name"], hbox(label(human(a["size"]), "meta"), action, spacing=6)))
+                meta = human(a["size"]) + (" · ended" if ended else "")
+                box.append(row(None, a["name"], hbox(label(meta, "meta"), action, spacing=6)))
             self.body.append(box)
 
         if self.clean_note:
