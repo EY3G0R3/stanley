@@ -36,6 +36,13 @@ class Tmp(Panel):
            "Your temp folder {path} holds {size}. Delete the build copies and scratch "
            "files you no longer need, keep only what your current work uses, and reuse "
            "one build folder from now on. No reply needed.")
+    AUDIT = ("From the user, via the stanley /tmp popup: /tmp has {free} free of {total}. "
+             "Audit /tmp and suggest what to clean up. Start with `tmp-usage` and "
+             "`tmp-usage --cleanup-stale --dry-run`, then look into the largest entries, "
+             "the recent and kept ones, and folders in /tmp/claude-{uid} whose session has "
+             "ended (`kelly targets` lists the live ones). For each suggestion give the path, "
+             "size, what made it, and whether it is safe to delete. Delete nothing; end with "
+             "a ranked list and the exact commands.")
 
     def __init__(self, app):
         super().__init__(app)
@@ -47,7 +54,10 @@ class Tmp(Panel):
         self.clean_btn = None
 
     def build_foot(self):
-        self.foot_button("Open /tmp", ["xdg-open", "/tmp"])
+        self.foot_button("Open", ["xdg-open", "/tmp"])
+        audit = button("Audit", self.audit)
+        audit.set_tooltip_text("Start an agent that audits /tmp and suggests what to delete")
+        self.foot.append(audit)
         self.spacer()
         self.clean_btn = Gtk.Button(label="Clean stale")
         self.clean_btn.add_css_class("btn")
@@ -74,6 +84,17 @@ class Tmp(Panel):
             {t.split(":", 1)[1] for t in targets if t.startswith("claude:")}
         if self.report is not None:
             self.draw()
+
+    def audit(self):
+        r = self.report or {}
+        quota = r.get("quota") or {}
+        total = quota.get("limit") or (r.get("capacity") or {}).get("total", 0)
+        prompt = self.AUDIT.format(free=human(r.get("free", 0)), total=human(total), uid=os.getuid())
+        # As the Agents popup does: the tab opens in the main Sprinkles window.
+        launch(["env", "-u", "KITTY_LISTEN_ON", "-u", "KITTY_WINDOW_ID",
+                "dwight", "project", "open", os.path.expanduser("~"), "--new",
+                "--agent", "claude", "--prompt", prompt])
+        self.app.quit()
 
     def delete(self, agent):
         """Remove the temp folder of a session that has ended."""
