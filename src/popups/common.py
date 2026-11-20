@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 
+import cairo
 import gi
 
 gi.require_version("Gtk", "4.0")
@@ -21,8 +22,10 @@ from gi.repository import Gdk, Gio, GLib, Graphene, Gtk  # noqa: E402
 
 LOCK_CMD = "if [ -x ~/bin/lock-screen ]; then exec ~/bin/lock-screen; else exec swaylock -f; fi"
 
-# Dracula, matching colors[] in dwl's config.h.
-C = dict(bg="#282a36", surface="#2f3241", line="#44475a", fg="#f8f8f2",
+# Dracula, matching colors[] in dwl's config.h. bar is dwl's COL_BG, the
+# bar's own colour, which the popup tab grows out of; deep is the darker
+# Dracula tint the tab fades to at its bottom.
+C = dict(bar="#000000", deep="#191a21", bg="#282a36", surface="#2f3241", line="#44475a", fg="#f8f8f2",
          muted="#8b8fa8", accent="#bd93f9", pink="#ff79c6", ok="#50fa7b",
          warn="#f1fa8c", bad="#ff5555", cyan="#8be9fd")
 
@@ -266,6 +269,12 @@ def rgb(cr, hexcolor, alpha=1.0):
     cr.set_source_rgba(c.red, c.green, c.blue, alpha)
 
 
+def add_stop(gradient, offset, hexcolor, alpha=1.0):
+    c = Gdk.RGBA()
+    c.parse(hexcolor)
+    gradient.add_color_stop_rgba(offset, c.red, c.green, c.blue, alpha)
+
+
 def rounded(cr, x, y, w, h, r):
     cr.new_sub_path()
     cr.arc(x + w - r, y + r, r, -math.pi / 2, 0)
@@ -364,7 +373,8 @@ class Panel:
 class Tab(Gtk.Box):
     """The popup's outline, drawn as an extension of the bar.
 
-    It is filled with the bar's own colour and touches the bar with no gap.
+    It starts in the bar's own colour, touches the bar with no gap, and
+    deepens toward the bottom.
     The top corners curve outwards into the bar (concave fillets of FLARE
     pixels on either side of the card) and the bottom corners are rounded,
     so the card reads as a tab growing out of the bar.
@@ -378,10 +388,8 @@ class Tab(Gtk.Box):
         child.set_margin_end(self.FLARE)
         self.append(child)
 
-    def do_snapshot(self, snapshot):
-        w, h, f, r = self.get_width(), self.get_height(), self.FLARE, self.RADIUS
-        cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, w, h))
-        cr.move_to(0, 0)
+    def outline(self, cr, w, h):
+        f, r = self.FLARE, self.RADIUS
         cr.arc(0, f, f, -math.pi / 2, 0)                     # left flare
         cr.line_to(f, h - r)
         cr.arc_negative(f + r, h - r, r, math.pi, math.pi / 2)
@@ -389,21 +397,29 @@ class Tab(Gtk.Box):
         cr.arc_negative(w - f - r, h - r, r, math.pi / 2, 0)
         cr.line_to(w - f, f)
         cr.arc(w, f, f, math.pi, 3 * math.pi / 2)            # right flare
+
+    def do_snapshot(self, snapshot):
+        w, h = self.get_width(), self.get_height()
+        cr = snapshot.append_cairo(Graphene.Rect().init(0, 0, w, h))
+        # The fill starts as the bar's colour, so the join is seamless, and
+        # deepens toward the bottom so the tab lifts off whatever is behind.
+        cr.move_to(0, 0)
+        self.outline(cr, w, h)
         cr.close_path()
-        rgb(cr, C["bg"])
-        cr.fill_preserve()
-        # An outline on everything but the edge the bar continues into, so
-        # the tab still shows over dwl's background, which is the same colour.
+        fill = cairo.LinearGradient(0, 0, 0, h)
+        add_stop(fill, 0, C["bar"])
+        add_stop(fill, 1, C["deep"])
+        cr.set_source(fill)
+        cr.fill()
+        # The outline fades in from the bar instead of starting with a hard
+        # line at its edge, and stays off the edge the bar continues into.
         cr.new_path()
-        cr.arc(0, f, f, -math.pi / 2, 0)
-        cr.line_to(f, h - r)
-        cr.arc_negative(f + r, h - r, r, math.pi, math.pi / 2)
-        cr.line_to(w - f - r, h)
-        cr.arc_negative(w - f - r, h - r, r, math.pi / 2, 0)
-        cr.line_to(w - f, f)
-        cr.arc(w, f, f, math.pi, 3 * math.pi / 2)
+        self.outline(cr, w, h)
+        edge = cairo.LinearGradient(0, 0, 0, 3 * self.FLARE)
+        add_stop(edge, 0, C["line"], 0)
+        add_stop(edge, 1, C["line"])
+        cr.set_source(edge)
         cr.set_line_width(2)
-        rgb(cr, C["line"])
         cr.stroke()
         Gtk.Box.do_snapshot(self, snapshot)
 
